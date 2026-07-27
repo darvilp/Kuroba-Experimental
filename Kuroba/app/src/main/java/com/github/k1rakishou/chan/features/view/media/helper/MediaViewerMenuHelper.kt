@@ -14,6 +14,7 @@ import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils
 import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils.getString
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.ReorderableMediaViewerActions
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 
 class MediaViewerMenuHelper(
   private val kurobaSettings: KurobaSettings,
@@ -63,10 +64,23 @@ class MediaViewerMenuHelper(
       checked = kurobaSettings.application.mediaViewerRevealImageSpoilers.readBlocking()
     )
 
-    options += CheckableFloatingListMenuItem(
-      key = ACTION_VIDEO_AUTO_LOOP,
-      name = getString(R.string.setting_video_auto_loop),
-      checked = kurobaSettings.application.videoAutoLoop.readBlocking()
+    val videoEndBehavior = kurobaSettings.application.videoEndBehavior.readBlocking()
+    val videoEndBehaviorItems = VideoEndBehavior.entries.map { behavior ->
+      CheckableFloatingListMenuItem(
+        key = behavior,
+        name = videoEndBehaviorName(behavior),
+        groupId = VIDEO_END_BEHAVIOR_GROUP,
+        checked = videoEndBehavior == behavior
+      )
+    }
+
+    options += FloatingListMenuItem(
+      key = ACTION_VIDEO_END_BEHAVIOR,
+      name = getString(
+        R.string.setting_video_end_behavior,
+        videoEndBehaviorName(videoEndBehavior)
+      ),
+      more = videoEndBehaviorItems
     )
 
     options += CheckableFloatingListMenuItem(
@@ -146,7 +160,17 @@ class MediaViewerMenuHelper(
     clickedItem: FloatingListMenuItem,
     handleClickedOption: (Int) -> Unit,
   ) {
-    when (clickedItem.key as Int) {
+    val clickedItemKey = clickedItem.key
+    if (clickedItemKey is VideoEndBehavior) {
+      kurobaSettings.application.videoEndBehavior.writeBlocking(clickedItemKey)
+      return
+    }
+
+    if (clickedItemKey !is Int) {
+      return
+    }
+
+    when (clickedItemKey) {
       ACTION_DRAW_BEHIND_NOTCH -> {
         kurobaSettings.application.mediaViewerDrawBehindNotch.toggleBlocking()
         snackbarManager.toast(messageId = R.string.restart_the_media_viewer)
@@ -157,9 +181,6 @@ class MediaViewerMenuHelper(
       }
       ACTION_AUTO_REVEAL_SPOILERS -> {
         kurobaSettings.application.mediaViewerRevealImageSpoilers.toggleBlocking()
-      }
-      ACTION_VIDEO_AUTO_LOOP -> {
-        kurobaSettings.application.videoAutoLoop.toggleBlocking()
       }
       ACTION_VIDEO_START_MUTED -> {
         kurobaSettings.application.videoDefaultMuted.toggleBlocking()
@@ -260,10 +281,18 @@ class MediaViewerMenuHelper(
     presentControllerFunc(floatingListMenuController)
   }
 
+  private fun videoEndBehaviorName(videoEndBehavior: VideoEndBehavior): String {
+    return when (videoEndBehavior) {
+      VideoEndBehavior.Loop -> getString(R.string.setting_video_end_behavior_loop)
+      VideoEndBehavior.AutoAdvance -> getString(R.string.setting_video_end_behavior_auto_advance)
+      VideoEndBehavior.Stop -> getString(R.string.setting_video_end_behavior_stop)
+    }
+  }
+
   companion object {
     const val ACTION_ALLOW_IMAGE_TRANSPARENCY = 100
     const val ACTION_AUTO_REVEAL_SPOILERS = 101
-    const val ACTION_VIDEO_AUTO_LOOP = 102
+    const val ACTION_VIDEO_END_BEHAVIOR = 102
     const val ACTION_VIDEO_START_MUTED = 103
     const val ACTION_VIDEO_START_MUTED_WITH_HEADSET = 104
     const val ACTION_VIDEO_ALWAYS_RESET_TO_START = 105
@@ -279,6 +308,8 @@ class MediaViewerMenuHelper(
 
     const val ACTION_MEDIA_VIEWER_ONE_OFFSCREEN_PAGE = 200
     const val ACTION_MEDIA_VIEWER_TWO_OFFSCREEN_PAGES = 201
+
+    private const val VIDEO_END_BEHAVIOR_GROUP = "video_end_behavior"
   }
 
 }
