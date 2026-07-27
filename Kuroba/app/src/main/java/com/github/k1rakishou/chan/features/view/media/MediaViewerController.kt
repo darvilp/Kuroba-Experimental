@@ -66,6 +66,7 @@ import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.model.data.descriptor.SiteDescriptor
 import com.github.k1rakishou.model.data.post.ChanPost
 import com.github.k1rakishou.model.data.post.ChanPostImage
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.google.android.exoplayer2.upstream.ContentDataSource
 import com.google.android.exoplayer2.upstream.DataSource
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
@@ -428,6 +429,39 @@ class MediaViewerController(
 
   override fun onPageScrollStateChanged(state: Int) {
     // no-op
+  }
+
+  override fun onVideoPlaybackCompleted(
+    pagerPosition: Int,
+    videoEndBehavior: VideoEndBehavior
+  ) {
+    BackgroundUtils.ensureMainThread()
+
+    val adapter = mediaViewerAdapter
+      ?: return
+
+    val nextPagerPosition = MediaViewerVideoEndBehaviorHandler.nextPagerPositionOrNull(
+      videoEndBehavior = videoEndBehavior,
+      completedPagerPosition = pagerPosition,
+      currentPagerPosition = pager.currentItem,
+      totalMediaCount = adapter.totalViewableMediaCount
+    )
+
+    if (nextPagerPosition == null) {
+      Logger.d(
+        TAG,
+        "onVideoPlaybackCompleted() ignored, pagerPosition=$pagerPosition, " +
+          "currentPagerPosition=${pager.currentItem}, totalMediaCount=${adapter.totalViewableMediaCount}, " +
+          "videoEndBehavior=$videoEndBehavior"
+      )
+      return
+    }
+
+    Logger.d(
+      TAG,
+      "onVideoPlaybackCompleted() advancing $pagerPosition -> $nextPagerPosition"
+    )
+    pager.setCurrentItem(nextPagerPosition, true)
   }
 
   override fun changeMediaViewerBackgroundAlpha(newAlpha: Float) {

@@ -41,6 +41,7 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.google.android.exoplayer2.ui.DefaultTimeBar
 import com.google.android.exoplayer2.ui.TimeBar
 import com.google.android.exoplayer2.upstream.DataSource
@@ -102,6 +103,10 @@ class MpvVideoMediaView(
   private var showBufferingJob: Job? = null
   private var playJob: Job? = null
   private var playing = false
+  private var activeVideoEndBehavior = VideoEndBehavior.Loop
+  private var playbackCompletionReported = false
+  private var lastKnownPlaybackPositionSeconds: Double? = null
+  private var lastKnownDurationSeconds: Double? = null
 
   override val hasContent: Boolean
     get() = _hasContent
@@ -328,6 +333,7 @@ class MpvVideoMediaView(
     showBufferingJob = null
 
     _firstLoadOccurred = false
+    playbackCompletionReported = false
   }
 
   override fun unbind() {
@@ -583,9 +589,30 @@ class MpvVideoMediaView(
       }
       MPVLib.mpvEventId.MPV_EVENT_START_FILE -> {
         Logger.d(TAG, "onEvent MPV_EVENT_START_FILE")
+        playbackCompletionReported = false
+        lastKnownPlaybackPositionSeconds = null
+        lastKnownDurationSeconds = null
       }
       MPVLib.mpvEventId.MPV_EVENT_END_FILE -> {
-        Logger.d(TAG, "onEvent MPV_EVENT_END_FILE")
+        val eofReached = actualVideoPlayerView.eofReached == true
+        val shouldReportCompletion = MpvPlaybackCompletionDetector.shouldReportCompletion(
+          videoEndBehavior = activeVideoEndBehavior,
+          eofReached = eofReached,
+          lastKnownPositionSeconds = lastKnownPlaybackPositionSeconds,
+          durationSeconds = lastKnownDurationSeconds
+        )
+
+        Logger.d(
+          TAG,
+          "onEvent MPV_EVENT_END_FILE eofReached=$eofReached, " +
+            "lastKnownPositionSeconds=$lastKnownPlaybackPositionSeconds, " +
+            "durationSeconds=$lastKnownDurationSeconds, " +
+            "shouldReportCompletion=$shouldReportCompletion"
+        )
+
+        if (shouldReportCompletion) {
+          reportPlaybackCompletion()
+        }
       }
       MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN -> {
         Logger.d(TAG, "onEvent MPV_EVENT_SHUTDOWN")
@@ -636,6 +663,7 @@ class MpvVideoMediaView(
 
     when (property) {
       "time-pos" -> {
+        lastKnownPlaybackPositionSeconds = value.toDouble()
         updatePlaybackPos(_position = value, _demuxerCacheDuration = null)
       }
       "demuxer-cache-duration" -> {
@@ -661,7 +689,25 @@ class MpvVideoMediaView(
 
     when (property) {
       "pause" -> updatePlaybackStatus(value)
+      "eof-reached" -> onEofReached(value)
     }
+  }
+
+  private fun onEofReached(eofReached: Boolean) {
+    if (!eofReached) {
+      return
+    }
+
+    reportPlaybackCompletion()
+  }
+
+  private fun reportPlaybackCompletion() {
+    if (playbackCompletionReported) {
+      return
+    }
+
+    playbackCompletionReported = true
+    mediaViewContract.onVideoPlaybackCompleted(pagerPosition, activeVideoEndBehavior)
   }
 
   private fun eventPropertyUi(property: String, value: Double) {
@@ -670,7 +716,10 @@ class MpvVideoMediaView(
     }
 
     when (property) {
-      "duration/full" -> updatePlaybackDuration(value)
+      "duration/full" -> {
+        lastKnownDurationSeconds = value
+        updatePlaybackDuration(value)
+      }
     }
   }
 
@@ -680,9 +729,13 @@ class MpvVideoMediaView(
       return false
     }
 
+    activeVideoEndBehavior = viewModel.videoEndBehavior()
     actualVideoPlayerView.playFile(
       filePath = filePath,
-      videoAutoLoop = viewModel.videoAutoLoop()
+      loopFile = activeVideoEndBehavior == VideoEndBehavior.Loop,
+      // mpv only keeps eof-reached stable when keep-open is enabled. Auto-advance
+      // needs that durable completion signal; Stop and Loop retain their old behavior.
+      keepOpenAtEnd = activeVideoEndBehavior == VideoEndBehavior.AutoAdvance
     )
 
     return true

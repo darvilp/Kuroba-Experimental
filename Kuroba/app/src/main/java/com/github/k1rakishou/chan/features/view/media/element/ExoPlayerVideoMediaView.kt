@@ -85,6 +85,11 @@ class ExoPlayerVideoMediaView(
       onAudioDetected = {
         updateAudioIcon(mediaViewContract.isSoundCurrentlyMuted())
         videoSoundDetected = true
+      },
+      onPlaybackEnded = { videoEndBehavior ->
+        if (shown) {
+          mediaViewContract.onVideoPlaybackCompleted(pagerPosition, videoEndBehavior)
+        }
       }
     )
   }

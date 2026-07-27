@@ -10,6 +10,7 @@ import com.github.k1rakishou.v2.parameters.LayoutMode
 import com.github.k1rakishou.v2.parameters.NetworkContentAutoLoadMode
 import com.github.k1rakishou.v2.parameters.PostAlignmentMode
 import com.github.k1rakishou.v2.parameters.PostThumbnailScaling
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
 
@@ -271,8 +272,16 @@ class ApplicationSettings(
     )
   }
 
+  // Retained for migrating the legacy two-state setting.
   val videoAutoLoop by lazy {
     createBooleanSetting(KurobaSettingKey.Application.VideoAutoLoop, true)
+  }
+  val videoEndBehavior by lazy {
+    createEnumSetting<VideoEndBehavior>(
+      clazz = VideoEndBehavior::class.java,
+      key = KurobaSettingKey.Application.VideoEndBehavior,
+      default = VideoEndBehavior.Loop
+    )
   }
   val videoDefaultMuted by lazy {
     createBooleanSetting(KurobaSettingKey.Application.VideoDefaultMuted, true)
