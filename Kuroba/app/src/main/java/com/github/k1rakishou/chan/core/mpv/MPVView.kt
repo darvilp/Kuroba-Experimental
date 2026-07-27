@@ -183,13 +183,18 @@ class MPVView(
         MPVLib.mpvSetOptionString("vo", if (gpuNext) "gpu-next" else "gpu")
     }
 
-    fun playFile(filePath: String, loopFile: Boolean) {
+    fun playFile(
+        filePath: String,
+        loopFile: Boolean,
+        keepOpenAtEnd: Boolean
+    ) {
         if (!MPVLib.librariesAreLoaded()) {
             Logger.d(TAG, "playFile() librariesAreLoaded: false")
             return
         }
 
         MPVLib.mpvSetPropertyString("loop-file", if (loopFile) "inf" else "no")
+        MPVLib.mpvSetPropertyString("keep-open", if (keepOpenAtEnd) "yes" else "no")
 
         if (!surfaceAttached) {
             this.filePath = filePath
@@ -234,6 +239,9 @@ class MPVView(
 
     val duration: Int?
         get() = MPVLib.mpvGetPropertyInt("duration")
+
+    val eofReached: Boolean?
+        get() = MPVLib.mpvGetPropertyBoolean("eof-reached")
 
     val demuxerCacheDuration: Int?
         get() = MPVLib.mpvGetPropertyInt("demuxer-cache-duration")

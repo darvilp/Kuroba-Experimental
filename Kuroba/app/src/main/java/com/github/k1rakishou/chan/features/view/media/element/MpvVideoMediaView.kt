@@ -105,6 +105,8 @@ class MpvVideoMediaView(
   private var playing = false
   private var activeVideoEndBehavior = VideoEndBehavior.Loop
   private var playbackCompletionReported = false
+  private var lastKnownPlaybackPositionSeconds: Double? = null
+  private var lastKnownDurationSeconds: Double? = null
 
   override val hasContent: Boolean
     get() = _hasContent
@@ -588,9 +590,29 @@ class MpvVideoMediaView(
       MPVLib.mpvEventId.MPV_EVENT_START_FILE -> {
         Logger.d(TAG, "onEvent MPV_EVENT_START_FILE")
         playbackCompletionReported = false
+        lastKnownPlaybackPositionSeconds = null
+        lastKnownDurationSeconds = null
       }
       MPVLib.mpvEventId.MPV_EVENT_END_FILE -> {
-        Logger.d(TAG, "onEvent MPV_EVENT_END_FILE")
+        val eofReached = actualVideoPlayerView.eofReached == true
+        val shouldReportCompletion = MpvPlaybackCompletionDetector.shouldReportCompletion(
+          videoEndBehavior = activeVideoEndBehavior,
+          eofReached = eofReached,
+          lastKnownPositionSeconds = lastKnownPlaybackPositionSeconds,
+          durationSeconds = lastKnownDurationSeconds
+        )
+
+        Logger.d(
+          TAG,
+          "onEvent MPV_EVENT_END_FILE eofReached=$eofReached, " +
+            "lastKnownPositionSeconds=$lastKnownPlaybackPositionSeconds, " +
+            "durationSeconds=$lastKnownDurationSeconds, " +
+            "shouldReportCompletion=$shouldReportCompletion"
+        )
+
+        if (shouldReportCompletion) {
+          reportPlaybackCompletion()
+        }
       }
       MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN -> {
         Logger.d(TAG, "onEvent MPV_EVENT_SHUTDOWN")
@@ -641,6 +663,7 @@ class MpvVideoMediaView(
 
     when (property) {
       "time-pos" -> {
+        lastKnownPlaybackPositionSeconds = value.toDouble()
         updatePlaybackPos(_position = value, _demuxerCacheDuration = null)
       }
       "demuxer-cache-duration" -> {
@@ -672,10 +695,13 @@ class MpvVideoMediaView(
 
   private fun onEofReached(eofReached: Boolean) {
     if (!eofReached) {
-      playbackCompletionReported = false
       return
     }
 
+    reportPlaybackCompletion()
+  }
+
+  private fun reportPlaybackCompletion() {
     if (playbackCompletionReported) {
       return
     }
@@ -690,7 +716,10 @@ class MpvVideoMediaView(
     }
 
     when (property) {
-      "duration/full" -> updatePlaybackDuration(value)
+      "duration/full" -> {
+        lastKnownDurationSeconds = value
+        updatePlaybackDuration(value)
+      }
     }
   }
 
@@ -703,7 +732,10 @@ class MpvVideoMediaView(
     activeVideoEndBehavior = viewModel.videoEndBehavior()
     actualVideoPlayerView.playFile(
       filePath = filePath,
-      loopFile = activeVideoEndBehavior == VideoEndBehavior.Loop
+      loopFile = activeVideoEndBehavior == VideoEndBehavior.Loop,
+      // mpv only keeps eof-reached stable when keep-open is enabled. Auto-advance
+      // needs that durable completion signal; Stop and Loop retain their old behavior.
+      keepOpenAtEnd = activeVideoEndBehavior == VideoEndBehavior.AutoAdvance
     )
 
     return true
