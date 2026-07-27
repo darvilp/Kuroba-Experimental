@@ -53,7 +53,6 @@ android {
         applicationIdSuffix = ""
         buildConfigField("String", "BUILD_TYPE", "\"${kurobaBuildType.name}\"")
         buildConfigField("String", "COMMIT_HASH", "\"${gitHashProvider.get()}\"")
-        manifestPlaceholders["fileProviderAuthority"] = "${defaultConfig.applicationId}.fileprovider"
         manifestPlaceholders["appTheme"] = "@style/Chan.DefaultTheme"
 
         when (kurobaBuildType) {
@@ -66,7 +65,8 @@ android {
               manifestPlaceholders["iconLoc"] = "@mipmap/ic_launcher_beta"
           }
           KurobaBuildType.Dev -> {
-              manifestPlaceholders["appName"] = "KurobaEx-dev"
+              applicationIdSuffix = ".personal"
+              manifestPlaceholders["appName"] = "KurobaEx Personal"
               manifestPlaceholders["iconLoc"] = "@mipmap/ic_launcher_dev"
           }
         }
@@ -158,7 +158,7 @@ android {
                 val apkNameSuffix = when (kurobaBuildType) {
                   KurobaBuildType.Stable -> ""
                   KurobaBuildType.Beta -> "beta"
-                  KurobaBuildType.Dev -> "dev"
+                  KurobaBuildType.Dev -> "personal"
                 }
                 val abi = output.getFilter("ABI") ?: ""
 
