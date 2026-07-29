@@ -868,7 +868,7 @@ class MediaViewerController(
         "initialPagerIndex=${mediaViewerState.initialPagerIndex}")
   }
 
-  private fun createCacheDataSourceFactory(viewableMedia: List<ViewableMedia>): DataSource.Factory {
+  private fun createCacheDataSourceFactory(viewableMedia: List<ViewableMedia>): CacheDataSource.Factory {
     val defaultDataSourceFactory = DefaultHttpDataSource.Factory()
       .setDefaultRequestProperties(createRequestProperties(viewableMedia))
 

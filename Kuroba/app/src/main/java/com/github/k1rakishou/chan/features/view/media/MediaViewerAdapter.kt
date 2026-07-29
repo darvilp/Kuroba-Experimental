@@ -22,6 +22,7 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.data.post.ChanPostImage
 import com.github.k1rakishou.v2.KurobaSettings
 import com.google.android.exoplayer2.upstream.DataSource
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource
 import kotlinx.coroutines.CompletableDeferred
 
 class MediaViewerAdapter(
@@ -35,7 +36,7 @@ class MediaViewerAdapter(
   private val viewableMediaList: MutableList<ViewableMedia>,
   private val previewThumbnailLocation: MediaLocation,
   private val mediaViewerScrollerHelper: MediaViewerScrollerHelper,
-  private val cachedHttpDataSourceFactory: DataSource.Factory,
+  private val cachedHttpDataSourceFactory: CacheDataSource.Factory,
   private val fileDataSourceFactory: DataSource.Factory,
   private val contentDataSourceFactory: DataSource.Factory,
   private val chan4CloudFlareImagePreloaderManager: Chan4CloudFlareImagePreloaderManager,
