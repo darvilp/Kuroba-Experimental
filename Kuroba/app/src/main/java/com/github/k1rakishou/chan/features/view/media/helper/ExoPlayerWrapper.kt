@@ -47,10 +47,15 @@ class ExoPlayerWrapper(
   private val onAudioDetected: () -> Unit
 ) {
   private val scope = KurobaCoroutineScope()
-  private val reusableExoPlayer by lazy { getOrCreateExoPlayer()  }
+  private val reusableExoPlayerLazy = lazy { getOrCreateExoPlayer() }
+  private val reusableExoPlayer: ReusableExoPlayer
+    get() = reusableExoPlayerLazy.value
   val actualExoPlayer by lazy { reusableExoPlayer.exoPlayer }
 
   private var timelineUpdateJob: Job? = null
+  private var cancelActivePreload: (() -> Unit)? = null
+  private var firstFrameListener: Player.Listener? = null
+  private var audioDetectionListener: AnalyticsListener? = null
 
   private var _hasContent = false
   val hasContent: Boolean
@@ -71,6 +76,7 @@ class ExoPlayerWrapper(
     coroutineScope {
       val mediaSource = createMediaSource(viewableMedia, mediaLocation)
 
+      clearPlaybackListeners()
       actualExoPlayer.stop()
       actualExoPlayer.playWhenReady = false
       actualExoPlayer.setMediaSource(mediaSource)
@@ -90,29 +96,28 @@ class ExoPlayerWrapper(
         firstFrameRendered = CompletableDeferred()
       }
 
-      actualExoPlayer.addListener(object : Player.Listener {
+      firstFrameListener = object : Player.Listener {
         override fun onRenderedFirstFrame() {
           firstFrameRendered?.complete(mediaLocation)
-          actualExoPlayer.removeListener(this)
-
-          coroutineContext[Job.Key]?.invokeOnCompletion {
-            actualExoPlayer.removeListener(this)
-          }
+          clearFirstFrameListener(this)
         }
-      })
+      }
+      actualExoPlayer.addListener(requireNotNull(firstFrameListener))
 
-      actualExoPlayer.addAnalyticsListener(object : AnalyticsListener {
+      audioDetectionListener = object : AnalyticsListener {
         override fun onAudioEnabled(eventTime: AnalyticsListener.EventTime, counters: DecoderCounters) {
           onAudioDetected()
-          actualExoPlayer.removeAnalyticsListener(this)
-
-          coroutineContext[Job.Key]?.invokeOnCompletion {
-            actualExoPlayer.removeAnalyticsListener(this)
-          }
+          clearAudioDetectionListener(this)
         }
-      })
+      }
+      actualExoPlayer.addAnalyticsListener(requireNotNull(audioDetectionListener))
 
-      _hasContent = withTimeout(MAX_BG_AUDIO_DOWNLOAD_WAIT_TIME_MS) { awaitForContentOrError() }
+      try {
+        _hasContent = withTimeout(MAX_BG_AUDIO_DOWNLOAD_WAIT_TIME_MS) { awaitForContentOrError() }
+      } catch (error: Throwable) {
+        clearPlaybackListeners()
+        throw error
+      }
     }
   }
 
@@ -236,19 +241,49 @@ class ExoPlayerWrapper(
     actualExoPlayer.pause()
   }
 
-  fun release() {
+  fun deactivate() {
+    cancelActivePreload?.invoke()
+    cancelActivePreload = null
+
     _hasContent = false
 
-    synchronized(reusableExoPlayer) {
-      reusableExoPlayer.giveBack()
+    timelineUpdateJob?.cancel()
+    timelineUpdateJob = null
+
+    firstFrameRendered?.cancel()
+    firstFrameRendered = null
+    clearPlaybackListeners()
+
+    if (!reusableExoPlayerLazy.isInitialized()) {
+      return
     }
+
+    actualExoPlayer.pause()
+    actualExoPlayer.stop()
+  }
+
+  fun release() {
+    cancelActivePreload?.invoke()
+    cancelActivePreload = null
+
+    _hasContent = false
 
     timelineUpdateJob?.cancel()
     timelineUpdateJob = null
 
     scope.cancelChildren()
 
+    firstFrameRendered?.cancel()
     firstFrameRendered = null
+    clearPlaybackListeners()
+
+    if (!reusableExoPlayerLazy.isInitialized()) {
+      return
+    }
+
+    synchronized(reusableExoPlayer) {
+      reusableExoPlayer.giveBack()
+    }
   }
 
   fun setNoContent() {
@@ -273,28 +308,39 @@ class ExoPlayerWrapper(
 
   private suspend fun awaitForContentOrError(): Boolean {
     return suspendCancellableCoroutine { cancellableContinuation ->
-      val listener = object : Player.Listener {
+      lateinit var listener: Player.Listener
+      lateinit var cancelPreload: () -> Unit
+
+      fun clearPreload() {
+        actualExoPlayer.removeListener(listener)
+
+        if (cancelActivePreload === cancelPreload) {
+          cancelActivePreload = null
+        }
+      }
+
+      cancelPreload = {
+        cancellableContinuation.cancel()
+      }
+
+      listener = object : Player.Listener {
 
         override fun onPlayerErrorChanged(error: PlaybackException?) {
-          Logger.e(TAG, "preload() error", error)
-          actualExoPlayer.removeListener(this)
-
-          cancellableContinuation.invokeOnCancellation {
-            actualExoPlayer.removeListener(this)
+          if (error == null) {
+            return
           }
 
-          if (error != null && cancellableContinuation.isActive) {
+          Logger.e(TAG, "preload() error", error)
+          clearPreload()
+
+          if (cancellableContinuation.isActive) {
             cancellableContinuation.resumeWithException(error)
           }
         }
 
         override fun onPlaybackStateChanged(state: Int) {
           if (state == Player.STATE_ENDED || state == Player.STATE_READY) {
-            actualExoPlayer.removeListener(this)
-
-            cancellableContinuation.invokeOnCancellation {
-              actualExoPlayer.removeListener(this)
-            }
+            clearPreload()
 
             if (cancellableContinuation.isActive) {
               val hasContent = state == Player.STATE_READY
@@ -306,7 +352,42 @@ class ExoPlayerWrapper(
       }
 
       actualExoPlayer.addListener(listener)
+      cancelActivePreload = cancelPreload
+
+      cancellableContinuation.invokeOnCancellation {
+        clearPreload()
+      }
     }
+  }
+
+  private fun clearPlaybackListeners() {
+    firstFrameListener?.let { listener ->
+      actualExoPlayer.removeListener(listener)
+    }
+    firstFrameListener = null
+
+    audioDetectionListener?.let { listener ->
+      actualExoPlayer.removeAnalyticsListener(listener)
+    }
+    audioDetectionListener = null
+  }
+
+  private fun clearFirstFrameListener(listener: Player.Listener) {
+    if (firstFrameListener !== listener) {
+      return
+    }
+
+    actualExoPlayer.removeListener(listener)
+    firstFrameListener = null
+  }
+
+  private fun clearAudioDetectionListener(listener: AnalyticsListener) {
+    if (audioDetectionListener !== listener) {
+      return
+    }
+
+    actualExoPlayer.removeAnalyticsListener(listener)
+    audioDetectionListener = null
   }
 
   private fun getOrCreateExoPlayer(): ReusableExoPlayer {
