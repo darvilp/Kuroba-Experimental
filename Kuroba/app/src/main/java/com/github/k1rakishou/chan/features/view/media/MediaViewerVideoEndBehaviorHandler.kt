@@ -4,6 +4,19 @@ import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 
 internal object MediaViewerVideoEndBehaviorHandler {
 
+  fun shouldReplayFromStartWhenRevisited(
+    videoEndBehavior: VideoEndBehavior,
+    completedPagerPosition: Int,
+    totalMediaCount: Int
+  ): Boolean {
+    return nextPagerPositionOrNull(
+      videoEndBehavior = videoEndBehavior,
+      completedPagerPosition = completedPagerPosition,
+      currentPagerPosition = completedPagerPosition,
+      totalMediaCount = totalMediaCount
+    ) != null
+  }
+
   fun nextPagerPositionOrNull(
     videoEndBehavior: VideoEndBehavior,
     completedPagerPosition: Int,
