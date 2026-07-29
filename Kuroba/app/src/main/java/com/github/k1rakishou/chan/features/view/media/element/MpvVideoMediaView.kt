@@ -22,6 +22,7 @@ import com.github.k1rakishou.chan.core.mpv.MPVView
 import com.github.k1rakishou.chan.core.mpv.MpvUtils
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.MediaViewerControllerViewModel
+import com.github.k1rakishou.chan.features.view.media.MediaViewerVideoEndBehaviorHandler
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHelper
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerActionStrip
@@ -484,7 +485,12 @@ class MpvVideoMediaView(
         )
         actualVideoPlayerView.addObserver(this@MpvVideoMediaView)
 
-        if (!isLifecycleChange && viewModel.videoAlwaysResetToStart()) {
+        val replayAfterAutoAdvance =
+          !isLifecycleChange && mediaViewState.replayFromStartOnNextShow
+        val alwaysResetToStart =
+          !isLifecycleChange && viewModel.videoAlwaysResetToStart()
+
+        if (replayAfterAutoAdvance || alwaysResetToStart) {
           mediaViewState.resetPosition()
         }
 
@@ -707,6 +713,12 @@ class MpvVideoMediaView(
     }
 
     playbackCompletionReported = true
+    mediaViewState.replayFromStartOnNextShow =
+      MediaViewerVideoEndBehaviorHandler.shouldReplayFromStartWhenRevisited(
+        videoEndBehavior = activeVideoEndBehavior,
+        completedPagerPosition = pagerPosition,
+        totalMediaCount = totalPageItemsCount
+      )
     mediaViewContract.onVideoPlaybackCompleted(pagerPosition, activeVideoEndBehavior)
   }
 
@@ -967,7 +979,8 @@ class MpvVideoMediaView(
 
   class VideoMediaViewState(
     var prevPosition: Double? = null,
-    var prevPaused: Boolean? = null
+    var prevPaused: Boolean? = null,
+    var replayFromStartOnNextShow: Boolean = false
   ) : MediaViewState() {
 
     override fun resetPosition() {
@@ -975,16 +988,18 @@ class MpvVideoMediaView(
 
       prevPosition = null
       prevPaused = null
+      replayFromStartOnNextShow = false
     }
 
     override fun clone(): MediaViewState {
-      return VideoMediaViewState(prevPosition, prevPaused)
+      return VideoMediaViewState(prevPosition, prevPaused, replayFromStartOnNextShow)
     }
 
     override fun updateFrom(other: MediaViewState?) {
       if (other == null) {
         prevPosition = null
         prevPaused = null
+        replayFromStartOnNextShow = false
         return
       }
 
@@ -994,6 +1009,7 @@ class MpvVideoMediaView(
 
       this.prevPosition = other.prevPosition
       this.prevPaused = other.prevPaused
+      this.replayFromStartOnNextShow = other.replayFromStartOnNextShow
     }
   }
 
