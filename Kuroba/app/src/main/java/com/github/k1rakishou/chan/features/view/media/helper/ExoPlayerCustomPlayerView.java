@@ -28,27 +28,29 @@ import android.widget.TextView;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
-
-import com.github.k1rakishou.chan.R;
+import androidx.media3.common.AdOverlayInfo;
+import androidx.media3.common.AdViewProvider;
 import androidx.media3.common.C;
+import androidx.media3.common.ErrorMessageProvider;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.Timeline;
 import androidx.media3.common.Tracks;
+import androidx.media3.common.VideoSize;
 import androidx.media3.common.text.Cue;
-import androidx.media3.common.AdOverlayInfo;
-import androidx.media3.common.AdViewProvider;
+import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.RepeatModeUtil;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerControlView;
 import androidx.media3.ui.SubtitleView;
-import androidx.media3.common.util.Assertions;
-import androidx.media3.common.ErrorMessageProvider;
-import androidx.media3.common.util.RepeatModeUtil;
-import androidx.media3.common.util.Util;
-import androidx.media3.common.VideoSize;
+
+import com.github.k1rakishou.chan.R;
 import com.google.common.collect.ImmutableList;
 
 import java.lang.annotation.Documented;
@@ -57,6 +59,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
 import java.util.List;
 
+@OptIn(markerClass = UnstableApi.class)
 public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProvider {
 
     /**

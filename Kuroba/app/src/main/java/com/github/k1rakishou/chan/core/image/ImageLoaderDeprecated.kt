@@ -12,8 +12,11 @@ import android.util.LruCache
 import android.view.View
 import androidx.annotation.DrawableRes
 import androidx.annotation.GuardedBy
+import androidx.annotation.OptIn
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import coil.ImageLoader
 import coil.memory.MemoryCache
 import coil.network.HttpException
@@ -57,7 +60,6 @@ import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.v2.KurobaSettings
-import androidx.media3.common.MimeTypes
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -1032,6 +1034,7 @@ class ImageLoaderDeprecated(
     return getImageErrorLoadingDrawable(context)
   }
 
+  @OptIn(UnstableApi::class)
   suspend fun fileIsProbablyVideoInterruptible(
     fileName: String,
     inputFile: InputFile

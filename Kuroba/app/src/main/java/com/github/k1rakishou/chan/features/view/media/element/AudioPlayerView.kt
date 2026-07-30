@@ -8,6 +8,8 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.media3.common.Player
+import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.CacheHandler
@@ -29,8 +31,6 @@ import com.github.k1rakishou.common.errorMessageOrClassName
 import com.github.k1rakishou.common.isCancellationException
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
-import androidx.media3.common.Player
-import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -172,7 +172,7 @@ class AudioPlayerView @JvmOverloads constructor(
 
     if (soundPostVideoPlayerLazy.isInitialized()) {
       audioPlayerViewState.prevPosition = soundPostVideoPlayer.actualExoPlayer.currentPosition
-      audioPlayerViewState.prevWindowIndex = soundPostVideoPlayer.actualExoPlayer.currentWindowIndex
+      audioPlayerViewState.prevWindowIndex = soundPostVideoPlayer.actualExoPlayer.currentMediaItemIndex
       audioPlayerViewState.playing = MediaPlaybackLifecycle.resolvePlaybackIntent(
         previousIntent = audioPlayerViewState.playing,
         playWhenReady = soundPostVideoPlayer.actualExoPlayer.playWhenReady,

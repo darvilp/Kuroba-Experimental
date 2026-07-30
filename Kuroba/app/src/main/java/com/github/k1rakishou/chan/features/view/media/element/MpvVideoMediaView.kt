@@ -14,7 +14,12 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.OptIn
 import androidx.core.view.contains
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.mpv.MPVLib
@@ -41,14 +46,12 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
-import androidx.media3.ui.DefaultTimeBar
-import androidx.media3.ui.TimeBar
-import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+@OptIn(UnstableApi::class)
 class MpvVideoMediaView(
   context: Context,
   initialMediaViewState: VideoMediaViewState,

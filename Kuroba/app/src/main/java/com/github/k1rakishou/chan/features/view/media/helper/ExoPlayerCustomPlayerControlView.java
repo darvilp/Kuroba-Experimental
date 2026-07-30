@@ -34,20 +34,22 @@ import android.widget.TextView;
 
 import androidx.annotation.DoNotInline;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.annotation.RequiresApi;
-
-import com.github.k1rakishou.chan.R;
-import com.github.k1rakishou.chan.features.view.media.MediaViewerToolbar;
-import com.github.k1rakishou.chan.utils.AnimationUtils;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaLibraryInfo;
 import androidx.media3.common.Player;
 import androidx.media3.common.Timeline;
-import androidx.media3.ui.DefaultTimeBar;
-import androidx.media3.ui.TimeBar;
 import androidx.media3.common.util.Assertions;
 import androidx.media3.common.util.RepeatModeUtil;
+import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
+import androidx.media3.ui.DefaultTimeBar;
+import androidx.media3.ui.TimeBar;
+
+import com.github.k1rakishou.chan.R;
+import com.github.k1rakishou.chan.features.view.media.MediaViewerToolbar;
+import com.github.k1rakishou.chan.utils.AnimationUtils;
 
 import java.util.Arrays;
 import java.util.Formatter;
@@ -56,6 +58,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import kotlin.Unit;
 
+@OptIn(markerClass = UnstableApi.class)
 public class ExoPlayerCustomPlayerControlView extends FrameLayout {
 
     static {

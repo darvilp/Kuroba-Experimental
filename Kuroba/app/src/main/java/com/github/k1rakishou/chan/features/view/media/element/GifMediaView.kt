@@ -7,6 +7,7 @@ import android.graphics.PorterDuff
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.FrameLayout
+import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.downloader.CancelableDownload
@@ -27,7 +28,6 @@ import com.github.k1rakishou.common.isExceptionImportant
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.FileDescriptorMode
 import com.github.k1rakishou.v2.KurobaSettings
-import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

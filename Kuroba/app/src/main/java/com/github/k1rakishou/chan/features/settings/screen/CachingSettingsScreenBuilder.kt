@@ -1,6 +1,9 @@
 package com.github.k1rakishou.chan.features.settings.screen
 
 import android.content.Context
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.cache.SimpleCache
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.CacheHandler
@@ -15,7 +18,6 @@ import com.github.k1rakishou.common.AppConstants
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.util.ChanPostUtils
 import com.github.k1rakishou.v2.KurobaSettings
-import androidx.media3.datasource.cache.SimpleCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -76,6 +78,7 @@ class CachingSettingsScreenBuilder(
     }
   }
 
+  @OptIn(UnstableApi::class)
   private suspend fun SettingsScreen.buildDiskCacheSettingsGroup(
     context: Context,
     settingActions: SettingActions
