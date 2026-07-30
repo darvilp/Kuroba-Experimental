@@ -7,6 +7,7 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
@@ -18,7 +19,6 @@ import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils.getString
 import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils.openLink
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class UnsupportedMediaView(

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.AttributeSet
 import androidx.annotation.CallSuper
+import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.CacheHandler
@@ -44,7 +45,6 @@ import com.github.k1rakishou.model.data.descriptor.ChanDescriptor
 import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.ImageGestureActionType
-import com.google.android.exoplayer2.upstream.DataSource
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch

@@ -3,6 +3,10 @@ package com.github.k1rakishou.chan.features.view.media
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import com.github.k1rakishou.chan.core.manager.Chan4CloudFlareImagePreloaderManager
 import com.github.k1rakishou.chan.features.view.media.element.AudioMediaView
 import com.github.k1rakishou.chan.features.view.media.element.ExoPlayerVideoMediaView
@@ -21,9 +25,9 @@ import com.github.k1rakishou.common.mutableIteration
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.data.post.ChanPostImage
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
 import kotlinx.coroutines.CompletableDeferred
 
+@OptIn(UnstableApi::class)
 class MediaViewerAdapter(
   private val context: Context,
   private val appConstants: AppConstants,
@@ -35,7 +39,7 @@ class MediaViewerAdapter(
   private val viewableMediaList: MutableList<ViewableMedia>,
   private val previewThumbnailLocation: MediaLocation,
   private val mediaViewerScrollerHelper: MediaViewerScrollerHelper,
-  private val cachedHttpDataSourceFactory: DataSource.Factory,
+  private val cachedHttpDataSourceFactory: CacheDataSource.Factory,
   private val fileDataSourceFactory: DataSource.Factory,
   private val contentDataSourceFactory: DataSource.Factory,
   private val chan4CloudFlareImagePreloaderManager: Chan4CloudFlareImagePreloaderManager,

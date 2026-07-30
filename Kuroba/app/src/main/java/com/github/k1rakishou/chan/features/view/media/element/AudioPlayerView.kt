@@ -8,6 +8,8 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.media3.common.Player
+import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.CacheHandler
@@ -17,6 +19,7 @@ import com.github.k1rakishou.chan.features.view.media.MediaViewerControllerViewM
 import com.github.k1rakishou.chan.features.view.media.MediaViewerToolbar
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerWrapper
+import com.github.k1rakishou.chan.features.view.media.helper.MediaPlaybackLifecycle
 import com.github.k1rakishou.chan.ui.compose.snackbar.SnackbarManager
 import com.github.k1rakishou.chan.utils.AnimationUtils.fadeIn
 import com.github.k1rakishou.chan.utils.AnimationUtils.fadeOut
@@ -25,9 +28,9 @@ import com.github.k1rakishou.chan.utils.TimeUtils
 import com.github.k1rakishou.chan.utils.setEnabledFast
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.common.errorMessageOrClassName
+import com.github.k1rakishou.common.isCancellationException
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -167,28 +170,30 @@ class AudioPlayerView @JvmOverloads constructor(
       return
     }
 
-    if (soundPostVideoPlayerLazy.isInitialized() && soundPostVideoPlayer.hasContent) {
+    if (soundPostVideoPlayerLazy.isInitialized()) {
       audioPlayerViewState.prevPosition = soundPostVideoPlayer.actualExoPlayer.currentPosition
-      audioPlayerViewState.prevWindowIndex = soundPostVideoPlayer.actualExoPlayer.currentWindowIndex
-
-      if (audioPlayerViewState.prevPosition <= 0 && audioPlayerViewState.prevWindowIndex <= 0) {
-        // Reset the flag because (most likely) the user swiped through the pages so fast that the
-        // player hasn't been able to start playing so it's still in some kind of BUFFERING state or
-        // something like that so mainVideoPlayer.isPlaying() will return false which will cause the
-        // player to appear paused if the user switches back to this page. We don't want that that's
-        // why we are resetting the "playing" to null here.
-        audioPlayerViewState.playing = null
-      } else {
-        audioPlayerViewState.playing = soundPostVideoPlayer.isPlaying()
-      }
+      audioPlayerViewState.prevWindowIndex = soundPostVideoPlayer.actualExoPlayer.currentMediaItemIndex
+      audioPlayerViewState.playing = MediaPlaybackLifecycle.resolvePlaybackIntent(
+        previousIntent = audioPlayerViewState.playing,
+        playWhenReady = soundPostVideoPlayer.actualExoPlayer.playWhenReady,
+        playbackEnded = soundPostVideoPlayer.actualExoPlayer.playbackState == Player.STATE_ENDED
+      )
 
       fun pauseInBg(): Boolean {
         return kurobaSettings.application.mediaViewerPausePlayersWhenInBackground.readBlocking()
       }
 
-      val needPause = soundPostVideoPlayer.isPlaying() && ((isPausing && pauseInBg()) || isBecomingInactive)
-      if (needPause) {
+      val shouldPause = MediaPlaybackLifecycle.shouldPause(
+        isPausing = isPausing,
+        pauseInBackground = pauseInBg(),
+        isBecomingInactive = isBecomingInactive
+      )
+      if (shouldPause) {
         soundPostVideoPlayer.pause()
+      }
+
+      if (isBecomingInactive) {
+        soundPostVideoPlayer.deactivate()
       }
     }
   }
@@ -197,7 +202,7 @@ class AudioPlayerView @JvmOverloads constructor(
     hasSoundPostUrl = false
     audioPlayerCallbacks = null
 
-    if (soundPostVideoPlayerLazy.isInitialized() && soundPostVideoPlayer.hasContent) {
+    if (soundPostVideoPlayerLazy.isInitialized()) {
       soundPostVideoPlayer.release()
     }
 
@@ -223,6 +228,8 @@ class AudioPlayerView @JvmOverloads constructor(
     }
 
     if (soundPostVideoPlayerLazy.isInitialized()) {
+      audioPlayerViewState.playing = !isNowPaused
+
       if (isNowPaused) {
         soundPostVideoPlayer.pause()
       } else {
@@ -320,6 +327,7 @@ class AudioPlayerView @JvmOverloads constructor(
       )
 
       if (audioPlayerViewState.playing == null || audioPlayerViewState.playing == true) {
+        audioPlayerViewState.playing = true
         Logger.d(TAG, "loadImageBgAudio() startAndAwaitFirstFrame()")
 
         soundPostVideoPlayer.startAndAwaitFirstFrame(soundPostActualSoundMedia.mediaLocation)
@@ -340,6 +348,10 @@ class AudioPlayerView @JvmOverloads constructor(
       Logger.d(TAG, "loadImageBgAudio() success")
       return true
     } catch (error: Throwable) {
+      if (error.isCancellationException()) {
+        return false
+      }
+
       Logger.e(TAG, "loadImageBgAudio() Failed to load image bg audio: ${soundPostActualSoundMedia.mediaLocation}", error)
 
       val errorMessage = getString(R.string.media_viewer_error_loading_bg_audio, error.errorMessageOrClassName())
@@ -361,9 +373,9 @@ class AudioPlayerView @JvmOverloads constructor(
 
   private fun updatePlayIcon(isNowPlaying: Boolean) {
     val imageDrawable = if (isNowPlaying) {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_pause
+      androidx.media3.ui.R.drawable.exo_legacy_controls_pause
     } else {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_play
+      androidx.media3.ui.R.drawable.exo_legacy_controls_play
     }
 
     audioPlayerPlayPause.setImageResource(imageDrawable)

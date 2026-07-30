@@ -6,8 +6,11 @@ import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import androidx.annotation.OptIn
 import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.drawable.toBitmap
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
 import coil.ImageLoader
 import coil.memory.MemoryCache
 import coil.request.ErrorResult
@@ -34,11 +37,11 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.AbstractFile
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
-import com.google.android.exoplayer2.util.MimeTypes
 import java.io.File
 
 private const val TAG = "KurobaImageLoaderShared"
 
+@OptIn(UnstableApi::class)
 suspend fun fileIsProbablyVideoInterruptible(
   appContext: Context,
   fileName: String,

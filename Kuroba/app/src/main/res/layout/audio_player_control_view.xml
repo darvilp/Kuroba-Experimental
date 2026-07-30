@@ -47,7 +47,7 @@
                 android:layout_width="60dp"
                 android:layout_height="38dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/exo_controls_pause" />
+                android:src="@drawable/exo_legacy_controls_pause" />
 
 
             <ImageButton

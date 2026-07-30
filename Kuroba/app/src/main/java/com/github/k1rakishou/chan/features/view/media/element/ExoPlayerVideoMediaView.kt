@@ -5,12 +5,20 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
+import android.net.Uri
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ProgressBar
+import androidx.annotation.OptIn
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheWriter
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
@@ -21,6 +29,7 @@ import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHel
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerCustomPlayerControlView
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerCustomPlayerView
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerWrapper
+import com.github.k1rakishou.chan.features.view.media.helper.MediaPlaybackLifecycle
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerActionStrip
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
 import com.github.k1rakishou.chan.ui.theme.widget.ColorizableProgressBar
@@ -35,20 +44,23 @@ import com.github.k1rakishou.common.findChild
 import com.github.k1rakishou.common.isExceptionImportant
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+@OptIn(UnstableApi::class)
 class ExoPlayerVideoMediaView(
   context: Context,
   initialMediaViewState: VideoMediaViewState,
   mediaViewContract: MediaViewContract,
   kurobaSettings: KurobaSettings,
   private val viewModel: MediaViewerControllerViewModel,
-  private val cachedHttpDataSourceFactory: DataSource.Factory,
+  private val cachedHttpDataSourceFactory: CacheDataSource.Factory,
   private val fileDataSourceFactory: DataSource.Factory,
   private val contentDataSourceFactory: DataSource.Factory,
   private val onThumbnailFullyLoadedFunc: () -> Unit,
@@ -105,6 +117,12 @@ class ExoPlayerVideoMediaView(
   private val gestureDetector: GestureDetector
 
   private var fullVideoDeferred = CompletableDeferred<Unit>()
+  @Volatile
+  private var bytePreloadingJob: Job? = null
+  @Volatile
+  private var byteCacheWriter: CacheWriter? = null
+  @Volatile
+  private var bytePreloadingCompleted = false
   private var preloadingJob: Job? = null
   private var playJob: Job? = null
   private var videoSoundDetected = false
@@ -137,7 +155,7 @@ class ExoPlayerVideoMediaView(
     muteUnmuteButton = findViewById(R.id.exo_mute)
     muteUnmuteButton.setEnabledFast(false)
 
-    val movableContainer = findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_content_frame)
+    val movableContainer = findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
       ?: actualVideoPlayerView
 
     closeMediaActionHelper = CloseMediaActionHelper(
@@ -170,6 +188,7 @@ class ExoPlayerVideoMediaView(
           val canForcePreload = canPreload(forced = true)
 
           if (viewableMedia.mediaLocation is MediaLocation.Remote && canForcePreload) {
+            cancelBytePreloading()
             preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
             return@GestureDetectorListener true
           } else if (!canForcePreload) {
@@ -243,12 +262,7 @@ class ExoPlayerVideoMediaView(
       }
     )
 
-    val canPreloadRemote = viewableMedia.mediaLocation is MediaLocation.Remote && canPreload(forced = false)
-    val mediaIsLocal = viewableMedia.mediaLocation is MediaLocation.Local
-
-    if (canPreloadRemote || mediaIsLocal) {
-      preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
-    }
+    startBytePreloadingIfAllowed()
   }
 
   override fun bind() {
@@ -262,40 +276,45 @@ class ExoPlayerVideoMediaView(
     updateMuteUnMuteState()
     thumbnailMediaView.show()
 
+    startPlayerPreloadingIfAllowed()
+
     if (playJob != null) {
       return
     }
 
     playJob = scope.launch {
-      if (hasContent) {
-        // Already loaded and ready to play
-        switchToPlayerViewAndStartPlaying(isLifecycleChange)
-        playJob = null
-
-        return@launch
-      }
-
-      when (val fullVideoDeferredResult = fullVideoDeferred.awaitCatching()) {
-        is ModularResult.Error -> {
-          val error = fullVideoDeferredResult.error
-          Logger.e(TAG, "onFullVideoLoadingError()", error)
-
-          if (error.isExceptionImportant() && shown) {
-            snackbarManager.errorToast(
-              message = getString(R.string.image_failed_video_error, error.errorMessageOrClassName())
-            )
-          }
-
-          actualVideoPlayerView.setVisibilityFast(INVISIBLE)
+      try {
+        if (hasContent) {
+          // Already loaded and ready to play
+          switchToPlayerViewAndStartPlaying(isLifecycleChange)
+          return@launch
         }
-        is ModularResult.Value -> {
-          if (hasContent) {
-            switchToPlayerViewAndStartPlaying(isLifecycleChange)
+
+        when (val fullVideoDeferredResult = fullVideoDeferred.awaitCatching()) {
+          is ModularResult.Error -> {
+            val error = fullVideoDeferredResult.error
+            Logger.e(TAG, "onFullVideoLoadingError()", error)
+
+            if (error.isExceptionImportant() && shown) {
+              snackbarManager.errorToast(
+                message = getString(R.string.image_failed_video_error, error.errorMessageOrClassName())
+              )
+            }
+
+            actualVideoPlayerView.setVisibilityFast(INVISIBLE)
+          }
+          is ModularResult.Value -> {
+            if (hasContent) {
+              switchToPlayerViewAndStartPlaying(isLifecycleChange)
+            }
           }
         }
+      } finally {
+        val currentJob = coroutineContext[Job.Key]
+        if (playJob === currentJob) {
+          playJob = null
+        }
       }
-
-      playJob = null
     }
   }
 
@@ -306,33 +325,35 @@ class ExoPlayerVideoMediaView(
     playJob = null
 
     mediaViewState.prevPosition = mainVideoPlayer.actualExoPlayer.currentPosition
-    mediaViewState.prevWindowIndex = mainVideoPlayer.actualExoPlayer.currentWindowIndex
+    mediaViewState.prevWindowIndex = mainVideoPlayer.actualExoPlayer.currentMediaItemIndex
     mediaViewState.videoSoundDetected = videoSoundDetected
-
-    if (mediaViewState.prevPosition <= 0 && mediaViewState.prevWindowIndex <= 0) {
-      // Reset the flag because (most likely) the user swiped through the pages so fast that the
-      // player hasn't been able to start playing so it's still in some kind of BUFFERING state or
-      // something like that so mainVideoPlayer.isPlaying() will return false which will cause the
-      // player to appear paused if the user switches back to this page. We don't want that that's
-      // why we are resetting the "playing" to null here.
-      mediaViewState.playing = null
-    } else {
-      mediaViewState.playing = mainVideoPlayer.isPlaying()
-    }
+    mediaViewState.playing = MediaPlaybackLifecycle.resolvePlaybackIntent(
+      previousIntent = mediaViewState.playing,
+      playWhenReady = mainVideoPlayer.actualExoPlayer.playWhenReady,
+      playbackEnded = mainVideoPlayer.actualExoPlayer.playbackState == Player.STATE_ENDED
+    )
 
     fun pauseInBg(): Boolean {
       return kurobaSettings.application.mediaViewerPausePlayersWhenInBackground.readBlocking()
     }
 
-    val needPause = mainVideoPlayer.isPlaying() && ((isPausing && pauseInBg()) || isBecomingInactive)
-    if (needPause) {
+    val shouldPause = MediaPlaybackLifecycle.shouldPause(
+      isPausing = isPausing,
+      pauseInBackground = pauseInBg(),
+      isBecomingInactive = isBecomingInactive
+    )
+    if (shouldPause) {
       mainVideoPlayer.pause()
+    }
+
+    if (isBecomingInactive) {
+      deactivatePlayer()
+      startBytePreloadingIfAllowed()
     }
   }
 
   override fun unbind() {
     thumbnailMediaView.unbind()
-    mainVideoPlayer.release()
     closeMediaActionHelper.onDestroy()
 
     if (fullVideoDeferred.isActive) {
@@ -345,7 +366,10 @@ class ExoPlayerVideoMediaView(
     preloadingJob?.cancel()
     preloadingJob = null
 
+    cancelBytePreloading()
+
     actualVideoPlayerView.player = null
+    mainVideoPlayer.release()
   }
 
   override suspend fun reloadMedia() {
@@ -358,6 +382,8 @@ class ExoPlayerVideoMediaView(
       return
     }
 
+    cancelBytePreloading()
+
     cacheHandler.get().deleteCacheFileByUrlSuspend(
       cacheFileType = CacheFileType.PostMediaFull,
       url = mediaLocation.url.toString()
@@ -365,6 +391,8 @@ class ExoPlayerVideoMediaView(
 
     fullVideoDeferred.cancel()
     fullVideoDeferred = CompletableDeferred<Unit>()
+    bytePreloadingCompleted = false
+    playJob?.cancel()
     playJob = null
 
     thumbnailMediaView.setVisibilityFast(VISIBLE)
@@ -397,6 +425,7 @@ class ExoPlayerVideoMediaView(
 
   override fun initializePlayerAndStartPlaying() {
     if (preloadingJob == null) {
+      cancelBytePreloading()
       preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
     }
   }
@@ -425,6 +454,8 @@ class ExoPlayerVideoMediaView(
   }
 
   private fun startFullVideoPreloading(mediaLocation: MediaLocation): Job {
+    val loadingDeferred = fullVideoDeferred
+
     return scope.launch {
       this@ExoPlayerVideoMediaView.videoSoundDetected = mediaViewState.videoSoundDetected == true
 
@@ -453,14 +484,20 @@ class ExoPlayerVideoMediaView(
           prevWindowIndex = mediaViewState.prevWindowIndex
         )
 
-        fullVideoDeferred.complete(Unit)
+        loadingDeferred.complete(Unit)
+      } catch (error: CancellationException) {
+        loadingDeferred.cancel(error)
+        throw error
       } catch (error: Throwable) {
-        fullVideoDeferred.completeExceptionally(error)
+        loadingDeferred.completeExceptionally(error)
       } finally {
-        preloadingJob = null
+        val currentJob = coroutineContext[Job.Key]
 
         showBufferingJob.cancel()
-        bufferingProgressView.setVisibilityFast(INVISIBLE)
+        if (preloadingJob === currentJob) {
+          preloadingJob = null
+          bufferingProgressView.setVisibilityFast(INVISIBLE)
+        }
       }
     }
   }
@@ -476,7 +513,7 @@ class ExoPlayerVideoMediaView(
   }
 
   private fun updateExoBufferingViewColors() {
-    actualVideoPlayerView.findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_buffering)?.let { progressView ->
+    actualVideoPlayerView.findViewById<View>(androidx.media3.ui.R.id.exo_buffering)?.let { progressView ->
       (progressView as? ProgressBar)?.progressTintList =
         ColorStateList.valueOf(themeEngine.chanTheme.accentColor)
       (progressView as? ProgressBar)?.indeterminateTintList =
@@ -503,6 +540,7 @@ class ExoPlayerVideoMediaView(
 
     when {
       mediaViewState.playing == null || mediaViewState.playing == true -> {
+        mediaViewState.playing = true
         mainVideoPlayer.startAndAwaitFirstFrame(viewableMedia.mediaLocation)
       }
       mediaViewState.prevWindowIndex >= 0 && mediaViewState.prevPosition >= 0 -> {
@@ -532,6 +570,92 @@ class ExoPlayerVideoMediaView(
     return canAutoLoad(cacheFileType = CacheFileType.PostMediaFull)
       && !fullVideoDeferred.isCompleted
       && (preloadingJob == null || preloadingJob?.isActive == false)
+  }
+
+  private fun startPlayerPreloadingIfAllowed() {
+    if (hasContent || preloadingJob?.isActive == true || fullVideoDeferred.isCompleted) {
+      return
+    }
+
+    val mediaLocation = viewableMedia.mediaLocation
+    val canStart = mediaLocation is MediaLocation.Local ||
+      (mediaLocation is MediaLocation.Remote && canPreload(forced = false))
+    if (!canStart) {
+      return
+    }
+
+    cancelBytePreloading()
+    preloadingJob = startFullVideoPreloading(mediaLocation)
+  }
+
+  private fun deactivatePlayer() {
+    preloadingJob?.cancel()
+    preloadingJob = null
+
+    mainVideoPlayer.deactivate()
+    actualVideoPlayerView.player = null
+    actualVideoPlayerView.setVisibilityFast(INVISIBLE)
+    bufferingProgressView.setVisibilityFast(INVISIBLE)
+
+    if (fullVideoDeferred.isActive) {
+      fullVideoDeferred.cancel()
+    }
+
+    fullVideoDeferred = CompletableDeferred()
+  }
+
+  private fun startBytePreloadingIfAllowed() {
+    if (bytePreloadingCompleted || bytePreloadingJob?.isActive == true) {
+      return
+    }
+
+    val mediaLocation = viewableMedia.mediaLocation as? MediaLocation.Remote
+      ?: return
+    if (!canPreload(forced = false)) {
+      return
+    }
+
+    val requestedLength = viewableMedia.viewableMediaMeta.mediaSize
+      ?.takeIf { mediaSize -> mediaSize > 0L }
+      ?.coerceAtMost(BYTE_PRELOAD_SIZE)
+      ?: BYTE_PRELOAD_SIZE
+    val dataSpec = DataSpec(Uri.parse(mediaLocation.urlRaw), 0L, requestedLength)
+    val cacheWriter = CacheWriter(
+      cachedHttpDataSourceFactory.createDataSourceForDownloading(),
+      dataSpec,
+      null,
+      null
+    )
+
+    val preloadJob = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
+      try {
+        cacheWriter.cache()
+        if (coroutineContext[Job.Key]?.isActive == true) {
+          bytePreloadingCompleted = true
+        }
+      } catch (error: Throwable) {
+        if (coroutineContext[Job.Key]?.isActive == true) {
+          Logger.d(TAG, "Byte preloading failed for ${mediaLocation.urlRaw}: ${error.message}")
+        }
+      } finally {
+        val currentJob = coroutineContext[Job.Key]
+        if (bytePreloadingJob === currentJob) {
+          byteCacheWriter = null
+          bytePreloadingJob = null
+        }
+      }
+    }
+    byteCacheWriter = cacheWriter
+    bytePreloadingJob = preloadJob
+    preloadJob.start()
+  }
+
+  private fun cancelBytePreloading() {
+    bytePreloadingJob?.cancel()
+    bytePreloadingJob = null
+
+    byteCacheWriter?.cancel()
+    byteCacheWriter = null
   }
 
   class VideoMediaViewState(
@@ -629,5 +753,6 @@ class ExoPlayerVideoMediaView(
 
   companion object {
     private const val TAG = "VideoMediaView"
+    private const val BYTE_PRELOAD_SIZE = 2L * 1024L * 1024L
   }
 }

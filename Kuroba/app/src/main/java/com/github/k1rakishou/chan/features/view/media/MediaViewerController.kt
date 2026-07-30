@@ -6,6 +6,13 @@ import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.view.View
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.ContentDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.FileDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.viewpager.widget.ViewPager
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
@@ -67,11 +74,6 @@ import com.github.k1rakishou.model.data.descriptor.SiteDescriptor
 import com.github.k1rakishou.model.data.post.ChanPost
 import com.github.k1rakishou.model.data.post.ChanPostImage
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
-import com.google.android.exoplayer2.upstream.ContentDataSource
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import com.google.android.exoplayer2.upstream.FileDataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -812,6 +814,7 @@ class MediaViewerController(
     mediaViewerAdapter?.onSystemUiVisibilityChanged(systemUIHidden)
   }
 
+  @OptIn(UnstableApi::class)
   private suspend fun awaitThumbnailLoadedAndShowViewPager(
     mediaViewerState: MediaViewerControllerViewModel.MediaViewerControllerState?
   ) {
@@ -868,7 +871,8 @@ class MediaViewerController(
         "initialPagerIndex=${mediaViewerState.initialPagerIndex}")
   }
 
-  private fun createCacheDataSourceFactory(viewableMedia: List<ViewableMedia>): DataSource.Factory {
+  @OptIn(UnstableApi::class)
+  private fun createCacheDataSourceFactory(viewableMedia: List<ViewableMedia>): CacheDataSource.Factory {
     val defaultDataSourceFactory = DefaultHttpDataSource.Factory()
       .setDefaultRequestProperties(createRequestProperties(viewableMedia))
 

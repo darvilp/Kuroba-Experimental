@@ -1,18 +1,18 @@
 package com.github.k1rakishou.chan.features.view.media.helper;
 
-import static com.google.android.exoplayer2.Player.COMMAND_SEEK_BACK;
-import static com.google.android.exoplayer2.Player.COMMAND_SEEK_FORWARD;
-import static com.google.android.exoplayer2.Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM;
-import static com.google.android.exoplayer2.Player.COMMAND_SEEK_TO_NEXT;
-import static com.google.android.exoplayer2.Player.COMMAND_SEEK_TO_PREVIOUS;
-import static com.google.android.exoplayer2.Player.EVENT_AVAILABLE_COMMANDS_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_IS_PLAYING_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_PLAYBACK_STATE_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_PLAY_WHEN_READY_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_POSITION_DISCONTINUITY;
-import static com.google.android.exoplayer2.Player.EVENT_REPEAT_MODE_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED;
-import static com.google.android.exoplayer2.Player.EVENT_TIMELINE_CHANGED;
+import static androidx.media3.common.Player.COMMAND_SEEK_BACK;
+import static androidx.media3.common.Player.COMMAND_SEEK_FORWARD;
+import static androidx.media3.common.Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM;
+import static androidx.media3.common.Player.COMMAND_SEEK_TO_NEXT;
+import static androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS;
+import static androidx.media3.common.Player.EVENT_AVAILABLE_COMMANDS_CHANGED;
+import static androidx.media3.common.Player.EVENT_IS_PLAYING_CHANGED;
+import static androidx.media3.common.Player.EVENT_PLAYBACK_STATE_CHANGED;
+import static androidx.media3.common.Player.EVENT_PLAY_WHEN_READY_CHANGED;
+import static androidx.media3.common.Player.EVENT_POSITION_DISCONTINUITY;
+import static androidx.media3.common.Player.EVENT_REPEAT_MODE_CHANGED;
+import static androidx.media3.common.Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED;
+import static androidx.media3.common.Player.EVENT_TIMELINE_CHANGED;
 
 import android.animation.ValueAnimator;
 import android.annotation.SuppressLint;
@@ -34,20 +34,22 @@ import android.widget.TextView;
 
 import androidx.annotation.DoNotInline;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.annotation.RequiresApi;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaLibraryInfo;
+import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
+import androidx.media3.common.util.Assertions;
+import androidx.media3.common.util.RepeatModeUtil;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.common.util.Util;
+import androidx.media3.ui.DefaultTimeBar;
+import androidx.media3.ui.TimeBar;
 
 import com.github.k1rakishou.chan.R;
 import com.github.k1rakishou.chan.features.view.media.MediaViewerToolbar;
 import com.github.k1rakishou.chan.utils.AnimationUtils;
-import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlayerLibraryInfo;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.ui.DefaultTimeBar;
-import com.google.android.exoplayer2.ui.TimeBar;
-import com.google.android.exoplayer2.util.Assertions;
-import com.google.android.exoplayer2.util.RepeatModeUtil;
-import com.google.android.exoplayer2.util.Util;
 
 import java.util.Arrays;
 import java.util.Formatter;
@@ -56,10 +58,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import kotlin.Unit;
 
+@OptIn(markerClass = UnstableApi.class)
 public class ExoPlayerCustomPlayerControlView extends FrameLayout {
 
     static {
-        ExoPlayerLibraryInfo.registerModule("goog.exo.ui");
+        MediaLibraryInfo.registerModule("media3.ui");
     }
 
     /** Listener to be notified about changes of the visibility of the UI control. */
@@ -208,15 +211,15 @@ public class ExoPlayerCustomPlayerControlView extends FrameLayout {
         LayoutInflater.from(context).inflate(R.layout.exo_player_control_view, /* root= */ this);
         setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
 
-        TimeBar customTimeBar = findViewById(com.google.android.exoplayer2.ui.R.id.exo_progress);
-        View timeBarPlaceholder = findViewById(com.google.android.exoplayer2.ui.R.id.exo_progress_placeholder);
+        TimeBar customTimeBar = findViewById(androidx.media3.ui.R.id.exo_progress);
+        View timeBarPlaceholder = findViewById(androidx.media3.ui.R.id.exo_progress_placeholder);
         if (customTimeBar != null) {
             timeBar = customTimeBar;
         } else if (timeBarPlaceholder != null) {
             // Propagate playbackAttrs as timebarAttrs so that DefaultTimeBar's custom attributes are
             // transferred, but standard attributes (e.g. background) are not.
             DefaultTimeBar defaultTimeBar = new DefaultTimeBar(context, null, 0, playbackAttrs);
-            defaultTimeBar.setId(com.google.android.exoplayer2.ui.R.id.exo_progress);
+            defaultTimeBar.setId(androidx.media3.ui.R.id.exo_progress);
             defaultTimeBar.setLayoutParams(timeBarPlaceholder.getLayoutParams());
             ViewGroup parent = ((ViewGroup) timeBarPlaceholder.getParent());
             int timeBarIndex = parent.indexOfChild(timeBarPlaceholder);
@@ -226,62 +229,62 @@ public class ExoPlayerCustomPlayerControlView extends FrameLayout {
         } else {
             timeBar = null;
         }
-        durationView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_duration);
-        positionView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_position);
+        durationView = findViewById(androidx.media3.ui.R.id.exo_duration);
+        positionView = findViewById(androidx.media3.ui.R.id.exo_position);
 
         if (timeBar != null) {
             timeBar.addListener(componentListener);
         }
-        playButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_play);
+        playButton = findViewById(androidx.media3.ui.R.id.exo_play);
         if (playButton != null) {
             playButton.setOnClickListener(componentListener);
         }
-        pauseButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_pause);
+        pauseButton = findViewById(androidx.media3.ui.R.id.exo_pause);
         if (pauseButton != null) {
             pauseButton.setOnClickListener(componentListener);
         }
-        previousButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_prev);
+        previousButton = findViewById(androidx.media3.ui.R.id.exo_prev);
         if (previousButton != null) {
             previousButton.setOnClickListener(componentListener);
         }
-        nextButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_next);
+        nextButton = findViewById(androidx.media3.ui.R.id.exo_next);
         if (nextButton != null) {
             nextButton.setOnClickListener(componentListener);
         }
-        rewindButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_rew);
+        rewindButton = findViewById(androidx.media3.ui.R.id.exo_rew);
         if (rewindButton != null) {
             rewindButton.setOnClickListener(componentListener);
         }
-        fastForwardButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_ffwd);
+        fastForwardButton = findViewById(androidx.media3.ui.R.id.exo_ffwd);
         if (fastForwardButton != null) {
             fastForwardButton.setOnClickListener(componentListener);
         }
-        repeatToggleButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_repeat_toggle);
+        repeatToggleButton = findViewById(androidx.media3.ui.R.id.exo_repeat_toggle);
         if (repeatToggleButton != null) {
             repeatToggleButton.setOnClickListener(componentListener);
         }
-        shuffleButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_shuffle);
+        shuffleButton = findViewById(androidx.media3.ui.R.id.exo_shuffle);
         if (shuffleButton != null) {
             shuffleButton.setOnClickListener(componentListener);
         }
-        vrButton = findViewById(com.google.android.exoplayer2.ui.R.id.exo_vr);
+        vrButton = findViewById(androidx.media3.ui.R.id.exo_vr);
         setShowVrButton(false);
         updateButton(false, false, vrButton);
 
         Resources resources = context.getResources();
 
-        buttonAlphaEnabled = (float) resources.getInteger(com.google.android.exoplayer2.ui.R.integer.exo_media_button_opacity_percentage_enabled) / 100;
-        buttonAlphaDisabled = (float) resources.getInteger(com.google.android.exoplayer2.ui.R.integer.exo_media_button_opacity_percentage_disabled) / 100;
-        repeatOffButtonDrawable = resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_controls_repeat_off);
-        repeatOneButtonDrawable = resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_controls_repeat_one);
-        repeatAllButtonDrawable = resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_controls_repeat_all);
-        shuffleOnButtonDrawable = resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_controls_shuffle_on);
-        shuffleOffButtonDrawable = resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_controls_shuffle_off);
-        repeatOffButtonContentDescription = resources.getString(com.google.android.exoplayer2.ui.R.string.exo_controls_repeat_off_description);
-        repeatOneButtonContentDescription = resources.getString(com.google.android.exoplayer2.ui.R.string.exo_controls_repeat_one_description);
-        repeatAllButtonContentDescription = resources.getString(com.google.android.exoplayer2.ui.R.string.exo_controls_repeat_all_description);
-        shuffleOnContentDescription = resources.getString(com.google.android.exoplayer2.ui.R.string.exo_controls_shuffle_on_description);
-        shuffleOffContentDescription = resources.getString(com.google.android.exoplayer2.ui.R.string.exo_controls_shuffle_off_description);
+        buttonAlphaEnabled = (float) resources.getInteger(androidx.media3.ui.R.integer.exo_media_button_opacity_percentage_enabled) / 100;
+        buttonAlphaDisabled = (float) resources.getInteger(androidx.media3.ui.R.integer.exo_media_button_opacity_percentage_disabled) / 100;
+        repeatOffButtonDrawable = resources.getDrawable(androidx.media3.ui.R.drawable.exo_legacy_controls_repeat_off);
+        repeatOneButtonDrawable = resources.getDrawable(androidx.media3.ui.R.drawable.exo_legacy_controls_repeat_one);
+        repeatAllButtonDrawable = resources.getDrawable(androidx.media3.ui.R.drawable.exo_legacy_controls_repeat_all);
+        shuffleOnButtonDrawable = resources.getDrawable(androidx.media3.ui.R.drawable.exo_legacy_controls_shuffle_on);
+        shuffleOffButtonDrawable = resources.getDrawable(androidx.media3.ui.R.drawable.exo_legacy_controls_shuffle_off);
+        repeatOffButtonContentDescription = resources.getString(androidx.media3.ui.R.string.exo_controls_repeat_off_description);
+        repeatOneButtonContentDescription = resources.getString(androidx.media3.ui.R.string.exo_controls_repeat_one_description);
+        repeatAllButtonContentDescription = resources.getString(androidx.media3.ui.R.string.exo_controls_repeat_all_description);
+        shuffleOnContentDescription = resources.getString(androidx.media3.ui.R.string.exo_controls_shuffle_on_description);
+        shuffleOffContentDescription = resources.getString(androidx.media3.ui.R.string.exo_controls_shuffle_off_description);
 
         currentPosition = C.TIME_UNSET;
         currentBufferedPosition = C.TIME_UNSET;

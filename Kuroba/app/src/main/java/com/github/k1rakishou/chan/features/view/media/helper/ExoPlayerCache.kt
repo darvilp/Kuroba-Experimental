@@ -1,11 +1,14 @@
 package com.github.k1rakishou.chan.features.view.media.helper
 
 import android.content.Context
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
 import com.github.k1rakishou.common.AppConstants
-import com.google.android.exoplayer2.database.ExoDatabaseProvider
-import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor
-import com.google.android.exoplayer2.upstream.cache.SimpleCache
 
+@OptIn(UnstableApi::class)
 class ExoPlayerCache(
   context: Context,
   appConstants: AppConstants
@@ -14,7 +17,7 @@ class ExoPlayerCache(
     SimpleCache(
       appConstants.exoPlayerCacheDir,
       LeastRecentlyUsedCacheEvictor(appConstants.exoPlayerDiskCacheMaxSize),
-      ExoDatabaseProvider(context)
+      StandaloneDatabaseProvider(context)
     )
   }
 }

@@ -14,7 +14,12 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.annotation.OptIn
 import androidx.core.view.contains
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.mpv.MPVLib
@@ -43,14 +48,12 @@ import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
-import com.google.android.exoplayer2.ui.DefaultTimeBar
-import com.google.android.exoplayer2.ui.TimeBar
-import com.google.android.exoplayer2.upstream.DataSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
+@OptIn(UnstableApi::class)
 class MpvVideoMediaView(
   context: Context,
   initialMediaViewState: VideoMediaViewState,
@@ -788,9 +791,9 @@ class MpvVideoMediaView(
 
   private fun updatePlaybackStatus(paused: Boolean) {
     val imageDrawable = if (paused) {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_play
+      androidx.media3.ui.R.drawable.exo_legacy_controls_play
     } else {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_pause
+      androidx.media3.ui.R.drawable.exo_legacy_controls_pause
     }
 
     mpvPlayPause.setImageResource(imageDrawable)
