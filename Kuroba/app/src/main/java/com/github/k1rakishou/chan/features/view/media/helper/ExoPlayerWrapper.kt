@@ -12,6 +12,7 @@ import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
+import com.google.android.exoplayer2.DefaultRenderersFactory
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
@@ -419,7 +420,25 @@ class ExoPlayerWrapper(
         return exoPlayer
       }
 
-      val newExoPlayer = SimpleExoPlayer.Builder(context).build()
+      val renderersFactory = DefaultRenderersFactory(context)
+        .setMediaCodecSelector(Vp8SoftwareMediaCodecSelector())
+        .setEnableDecoderFallback(true)
+      val newExoPlayer = SimpleExoPlayer.Builder(context, renderersFactory).build()
+      newExoPlayer.addAnalyticsListener(object : AnalyticsListener {
+        override fun onVideoDecoderInitialized(
+          eventTime: AnalyticsListener.EventTime,
+          decoderName: String,
+          initializedTimestampMs: Long,
+          initializationDurationMs: Long
+        ) {
+          Logger.d(
+            TAG,
+            "onVideoDecoderInitialized(decoderName='$decoderName', " +
+              "initializationDurationMs=$initializationDurationMs)"
+          )
+        }
+      })
+
       val newReusableExoPlayer = ReusableExoPlayer(isUsed = true, newExoPlayer)
       reusableExoPlayerCache.add(newReusableExoPlayer)
 
