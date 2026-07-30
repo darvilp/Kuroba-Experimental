@@ -41,9 +41,9 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.ui.DefaultTimeBar
-import com.google.android.exoplayer2.ui.TimeBar
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar
+import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -723,9 +723,9 @@ class MpvVideoMediaView(
 
   private fun updatePlaybackStatus(paused: Boolean) {
     val imageDrawable = if (paused) {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_play
+      androidx.media3.ui.R.drawable.exo_legacy_controls_play
     } else {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_pause
+      androidx.media3.ui.R.drawable.exo_legacy_controls_pause
     }
 
     mpvPlayPause.setImageResource(imageDrawable)

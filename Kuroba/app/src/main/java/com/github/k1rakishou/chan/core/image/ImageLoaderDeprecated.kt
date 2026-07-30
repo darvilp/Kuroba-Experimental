@@ -57,7 +57,7 @@ import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.util.MimeTypes
+import androidx.media3.common.MimeTypes
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope

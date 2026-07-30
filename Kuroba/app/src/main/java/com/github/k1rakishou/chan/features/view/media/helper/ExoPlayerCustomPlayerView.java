@@ -1,7 +1,7 @@
 package com.github.k1rakishou.chan.features.view.media.helper;
 
-import static com.google.android.exoplayer2.Player.COMMAND_GET_TEXT;
-import static com.google.android.exoplayer2.Player.COMMAND_SET_VIDEO_SURFACE;
+import static androidx.media3.common.Player.COMMAND_GET_TEXT;
+import static androidx.media3.common.Player.COMMAND_SET_VIDEO_SURFACE;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -32,23 +32,23 @@ import androidx.annotation.RequiresApi;
 import androidx.core.content.ContextCompat;
 
 import com.github.k1rakishou.chan.R;
-import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.MediaMetadata;
-import com.google.android.exoplayer2.PlaybackException;
-import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.Tracks;
-import com.google.android.exoplayer2.text.Cue;
-import com.google.android.exoplayer2.ui.AdOverlayInfo;
-import com.google.android.exoplayer2.ui.AdViewProvider;
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
-import com.google.android.exoplayer2.ui.PlayerControlView;
-import com.google.android.exoplayer2.ui.SubtitleView;
-import com.google.android.exoplayer2.util.Assertions;
-import com.google.android.exoplayer2.util.ErrorMessageProvider;
-import com.google.android.exoplayer2.util.RepeatModeUtil;
-import com.google.android.exoplayer2.util.Util;
-import com.google.android.exoplayer2.video.VideoSize;
+import androidx.media3.common.C;
+import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
+import androidx.media3.common.Timeline;
+import androidx.media3.common.Tracks;
+import androidx.media3.common.text.Cue;
+import androidx.media3.common.AdOverlayInfo;
+import androidx.media3.common.AdViewProvider;
+import androidx.media3.ui.AspectRatioFrameLayout;
+import androidx.media3.ui.PlayerControlView;
+import androidx.media3.ui.SubtitleView;
+import androidx.media3.common.util.Assertions;
+import androidx.media3.common.ErrorMessageProvider;
+import androidx.media3.common.util.RepeatModeUtil;
+import androidx.media3.common.util.Util;
+import androidx.media3.common.VideoSize;
 import com.google.common.collect.ImmutableList;
 
 import java.lang.annotation.Documented;
@@ -173,13 +173,13 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
         setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
 
         // Content frame.
-        contentFrame = findViewById(com.google.android.exoplayer2.ui.R.id.exo_content_frame);
+        contentFrame = findViewById(androidx.media3.ui.R.id.exo_content_frame);
         if (contentFrame != null) {
             setResizeModeRaw(contentFrame, resizeMode);
         }
 
         // Shutter view.
-        shutterView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_shutter);
+        shutterView = findViewById(androidx.media3.ui.R.id.exo_shutter);
         if (shutterView != null && shutterColorSet) {
             shutterView.setBackgroundColor(shutterColor);
         }
@@ -198,7 +198,7 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
                     try {
                         Class<?> clazz =
                                 Class.forName(
-                                        "com.google.android.exoplayer2.video.spherical.SphericalGLSurfaceView");
+                                        "androidx.media3.exoplayer.video.spherical.SphericalGLSurfaceView");
                         surfaceView = (View) clazz.getConstructor(Context.class).newInstance(context);
                     } catch (Exception e) {
                         throw new IllegalStateException(
@@ -209,7 +209,7 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
                 case SURFACE_TYPE_VIDEO_DECODER_GL_SURFACE_VIEW:
                     try {
                         Class<?> clazz =
-                                Class.forName("com.google.android.exoplayer2.video.VideoDecoderGLSurfaceView");
+                                Class.forName("androidx.media3.exoplayer.video.VideoDecoderGLSurfaceView");
                         surfaceView = (View) clazz.getConstructor(Context.class).newInstance(context);
                     } catch (Exception e) {
                         throw new IllegalStateException(
@@ -233,34 +233,34 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
         this.surfaceViewIgnoresVideoAspectRatio = surfaceViewIgnoresVideoAspectRatio;
 
         // Ad overlay frame layout.
-        adOverlayFrameLayout = findViewById(com.google.android.exoplayer2.ui.R.id.exo_ad_overlay);
+        adOverlayFrameLayout = findViewById(androidx.media3.ui.R.id.exo_ad_overlay);
 
         // Overlay frame layout.
-        overlayFrameLayout = findViewById(com.google.android.exoplayer2.ui.R.id.exo_overlay);
+        overlayFrameLayout = findViewById(androidx.media3.ui.R.id.exo_overlay);
 
         // Artwork view.
-        artworkView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_artwork);
+        artworkView = findViewById(androidx.media3.ui.R.id.exo_artwork);
         this.useArtwork = useArtwork && artworkView != null;
         if (defaultArtworkId != 0) {
             defaultArtwork = ContextCompat.getDrawable(getContext(), defaultArtworkId);
         }
 
         // Subtitle view.
-        subtitleView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_subtitles);
+        subtitleView = findViewById(androidx.media3.ui.R.id.exo_subtitles);
         if (subtitleView != null) {
             subtitleView.setUserDefaultStyle();
             subtitleView.setUserDefaultTextSize();
         }
 
         // Buffering view.
-        bufferingView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_buffering);
+        bufferingView = findViewById(androidx.media3.ui.R.id.exo_buffering);
         if (bufferingView != null) {
             bufferingView.setVisibility(View.GONE);
         }
         this.showBuffering = showBuffering;
 
         // Error message view.
-        errorMessageView = findViewById(com.google.android.exoplayer2.ui.R.id.exo_error_message);
+        errorMessageView = findViewById(androidx.media3.ui.R.id.exo_error_message);
         if (errorMessageView != null) {
             errorMessageView.setVisibility(View.GONE);
         }
@@ -273,7 +273,7 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
             ExoPlayerCustomPlayerControlView.VideoMediaViewCallbacks videoMediaViewCallbacks
     ) {
         this.controller = new ExoPlayerCustomPlayerControlView(getContext(), null, 0);
-        controller.setId(com.google.android.exoplayer2.ui.R.id.exo_controller);
+        controller.setId(androidx.media3.ui.R.id.exo_controller);
         controller.setLayoutParams(controllerPlaceholder.getLayoutParams());
         controller.setVideoMediaViewCallbacks(videoMediaViewCallbacks);
         ViewGroup parent = ((ViewGroup) controllerPlaceholder.getParent());
@@ -1152,11 +1152,11 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
         } else if (controller.getVisibility() == View.VISIBLE) {
             setContentDescription(
                     /* contentDescription= */ controllerHideOnTouch
-                            ? getResources().getString(com.google.android.exoplayer2.ui.R.string.exo_controls_hide)
+                            ? getResources().getString(androidx.media3.ui.R.string.exo_controls_hide)
                             : null);
         } else {
             setContentDescription(
-                    /* contentDescription= */ getResources().getString(com.google.android.exoplayer2.ui.R.string.exo_controls_show));
+                    /* contentDescription= */ getResources().getString(androidx.media3.ui.R.string.exo_controls_show));
         }
     }
 
@@ -1170,13 +1170,13 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
 
     @RequiresApi(23)
     private static void configureEditModeLogoV23(Resources resources, ImageView logo) {
-        logo.setImageDrawable(resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_edit_mode_logo, null));
-        logo.setBackgroundColor(resources.getColor(com.google.android.exoplayer2.ui.R.color.exo_edit_mode_background_color, null));
+        logo.setImageDrawable(resources.getDrawable(androidx.media3.ui.R.drawable.exo_edit_mode_logo, null));
+        logo.setBackgroundColor(resources.getColor(androidx.media3.ui.R.color.exo_edit_mode_background_color, null));
     }
 
     private static void configureEditModeLogo(Resources resources, ImageView logo) {
-        logo.setImageDrawable(resources.getDrawable(com.google.android.exoplayer2.ui.R.drawable.exo_edit_mode_logo));
-        logo.setBackgroundColor(resources.getColor(com.google.android.exoplayer2.ui.R.color.exo_edit_mode_background_color));
+        logo.setImageDrawable(resources.getDrawable(androidx.media3.ui.R.drawable.exo_edit_mode_logo));
+        logo.setBackgroundColor(resources.getColor(androidx.media3.ui.R.color.exo_edit_mode_background_color));
     }
 
     @SuppressWarnings("ResourceType")
@@ -1337,4 +1337,3 @@ public class ExoPlayerCustomPlayerView extends FrameLayout implements AdViewProv
         }
     }
 }
-

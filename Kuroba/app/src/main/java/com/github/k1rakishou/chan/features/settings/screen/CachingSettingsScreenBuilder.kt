@@ -15,7 +15,7 @@ import com.github.k1rakishou.common.AppConstants
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.util.ChanPostUtils
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.cache.SimpleCache
+import androidx.media3.datasource.cache.SimpleCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

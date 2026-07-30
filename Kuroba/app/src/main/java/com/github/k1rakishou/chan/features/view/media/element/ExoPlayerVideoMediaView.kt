@@ -36,11 +36,11 @@ import com.github.k1rakishou.common.findChild
 import com.github.k1rakishou.common.isExceptionImportant
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DataSpec
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
-import com.google.android.exoplayer2.upstream.cache.CacheWriter
+import androidx.media3.common.Player
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheWriter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -140,7 +140,7 @@ class ExoPlayerVideoMediaView(
     muteUnmuteButton = findViewById(R.id.exo_mute)
     muteUnmuteButton.setEnabledFast(false)
 
-    val movableContainer = findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_content_frame)
+    val movableContainer = findViewById<View>(androidx.media3.ui.R.id.exo_content_frame)
       ?: actualVideoPlayerView
 
     closeMediaActionHelper = CloseMediaActionHelper(
@@ -310,7 +310,7 @@ class ExoPlayerVideoMediaView(
     playJob = null
 
     mediaViewState.prevPosition = mainVideoPlayer.actualExoPlayer.currentPosition
-    mediaViewState.prevWindowIndex = mainVideoPlayer.actualExoPlayer.currentWindowIndex
+    mediaViewState.prevWindowIndex = mainVideoPlayer.actualExoPlayer.currentMediaItemIndex
     mediaViewState.videoSoundDetected = videoSoundDetected
     mediaViewState.playing = MediaPlaybackLifecycle.resolvePlaybackIntent(
       previousIntent = mediaViewState.playing,
@@ -498,7 +498,7 @@ class ExoPlayerVideoMediaView(
   }
 
   private fun updateExoBufferingViewColors() {
-    actualVideoPlayerView.findViewById<View>(com.google.android.exoplayer2.ui.R.id.exo_buffering)?.let { progressView ->
+    actualVideoPlayerView.findViewById<View>(androidx.media3.ui.R.id.exo_buffering)?.let { progressView ->
       (progressView as? ProgressBar)?.progressTintList =
         ColorStateList.valueOf(themeEngine.chanTheme.accentColor)
       (progressView as? ProgressBar)?.indeterminateTintList =

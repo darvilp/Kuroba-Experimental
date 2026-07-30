@@ -581,7 +581,7 @@ class LocalArchiveController(
 
     if (downloadResultMsg == null) {
       Image(
-        painter = painterResource(id = com.google.android.exoplayer2.ui.R.drawable.exo_ic_check),
+        painter = painterResource(id = androidx.media3.ui.R.drawable.exo_ic_check),
         contentDescription = null,
         alpha = iconAlpha,
         colorFilter = colorFilter,

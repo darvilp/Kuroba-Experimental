@@ -21,8 +21,8 @@ import com.github.k1rakishou.common.mutableIteration
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.data.post.ChanPostImage
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import kotlinx.coroutines.CompletableDeferred
 
 class MediaViewerAdapter(

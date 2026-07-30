@@ -66,11 +66,11 @@ import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.model.data.descriptor.SiteDescriptor
 import com.github.k1rakishou.model.data.post.ChanPost
 import com.github.k1rakishou.model.data.post.ChanPostImage
-import com.google.android.exoplayer2.upstream.ContentDataSource
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import com.google.android.exoplayer2.upstream.FileDataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
+import androidx.media3.datasource.ContentDataSource
+import androidx.media3.datasource.DataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.FileDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers

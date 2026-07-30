@@ -11,16 +11,16 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.SimpleExoPlayer
-import com.google.android.exoplayer2.analytics.AnalyticsListener
-import com.google.android.exoplayer2.decoder.DecoderCounters
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.MergingMediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -403,7 +403,7 @@ class ExoPlayerWrapper(
         return exoPlayer
       }
 
-      val newExoPlayer = SimpleExoPlayer.Builder(context).build()
+      val newExoPlayer = ExoPlayer.Builder(context).build()
       val newReusableExoPlayer = ReusableExoPlayer(isUsed = true, newExoPlayer)
       reusableExoPlayerCache.add(newReusableExoPlayer)
 
@@ -416,7 +416,7 @@ class ExoPlayerWrapper(
 
   class ReusableExoPlayer(
     private var isUsed: Boolean,
-    val exoPlayer: SimpleExoPlayer
+    val exoPlayer: ExoPlayer
   ) {
     val notUsed: Boolean
       @Synchronized

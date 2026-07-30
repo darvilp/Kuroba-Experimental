@@ -18,7 +18,7 @@ import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils.getString
 import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils.openLink
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.datasource.DataSource
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class UnsupportedMediaView(

@@ -34,7 +34,7 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.AbstractFile
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
-import com.google.android.exoplayer2.util.MimeTypes
+import androidx.media3.common.MimeTypes
 import java.io.File
 
 private const val TAG = "KurobaImageLoaderShared"

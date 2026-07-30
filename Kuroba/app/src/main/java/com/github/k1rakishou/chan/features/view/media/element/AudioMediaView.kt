@@ -16,7 +16,7 @@ import com.github.k1rakishou.chan.ui.theme.widget.ColorizableBarButton
 import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.datasource.DataSource
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class AudioMediaView(

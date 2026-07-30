@@ -30,7 +30,7 @@ import com.github.k1rakishou.common.isExceptionImportant
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.ImageGestureActionType
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

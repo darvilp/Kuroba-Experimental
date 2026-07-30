@@ -44,7 +44,7 @@ import com.github.k1rakishou.model.data.descriptor.ChanDescriptor
 import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.ImageGestureActionType
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.datasource.DataSource
 import dagger.Lazy
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch

@@ -29,8 +29,8 @@ import com.github.k1rakishou.common.errorMessageOrClassName
 import com.github.k1rakishou.common.isCancellationException
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.upstream.DataSource
+import androidx.media3.common.Player
+import androidx.media3.datasource.DataSource
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -373,9 +373,9 @@ class AudioPlayerView @JvmOverloads constructor(
 
   private fun updatePlayIcon(isNowPlaying: Boolean) {
     val imageDrawable = if (isNowPlaying) {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_pause
+      androidx.media3.ui.R.drawable.exo_legacy_controls_pause
     } else {
-      com.google.android.exoplayer2.ui.R.drawable.exo_controls_play
+      androidx.media3.ui.R.drawable.exo_legacy_controls_play
     }
 
     audioPlayerPlayPause.setImageResource(imageDrawable)
