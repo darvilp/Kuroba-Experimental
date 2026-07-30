@@ -2,6 +2,7 @@ package com.github.k1rakishou.chan.features.view.media.helper
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import com.github.k1rakishou.chan.core.concurrency.KurobaCoroutineScope
 import com.github.k1rakishou.chan.core.manager.ThreadDownloadManager
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
@@ -13,12 +14,14 @@ import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.google.android.exoplayer2.DefaultRenderersFactory
+import com.google.android.exoplayer2.Format
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
 import com.google.android.exoplayer2.SimpleExoPlayer
 import com.google.android.exoplayer2.analytics.AnalyticsListener
 import com.google.android.exoplayer2.decoder.DecoderCounters
+import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation
 import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.source.MergingMediaSource
 import com.google.android.exoplayer2.source.ProgressiveMediaSource
@@ -421,8 +424,15 @@ class ExoPlayerWrapper(
       }
 
       val renderersFactory = DefaultRenderersFactory(context)
-        .setMediaCodecSelector(Vp8SoftwareMediaCodecSelector())
-        .setEnableDecoderFallback(true)
+        .forceDisableMediaCodecAsynchronousQueueing()
+
+      Logger.d(
+        TAG,
+        "$VIDEO_DIAGNOSTIC_PREFIX MediaCodec adapter mode=synchronous, " +
+          "manufacturer='${Build.MANUFACTURER}', model='${Build.MODEL}', " +
+          "sdk=${Build.VERSION.SDK_INT}"
+      )
+
       val newExoPlayer = SimpleExoPlayer.Builder(context, renderersFactory).build()
       newExoPlayer.addAnalyticsListener(object : AnalyticsListener {
         override fun onVideoDecoderInitialized(
@@ -433,8 +443,92 @@ class ExoPlayerWrapper(
         ) {
           Logger.d(
             TAG,
-            "onVideoDecoderInitialized(decoderName='$decoderName', " +
-              "initializationDurationMs=$initializationDurationMs)"
+            "$VIDEO_DIAGNOSTIC_PREFIX decoder initialized: name='$decoderName', " +
+              "initializationDurationMs=$initializationDurationMs"
+          )
+        }
+
+        override fun onVideoInputFormatChanged(
+          eventTime: AnalyticsListener.EventTime,
+          format: Format,
+          decoderReuseEvaluation: DecoderReuseEvaluation?
+        ) {
+          Logger.d(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX input format changed: " +
+              "mimeType='${format.sampleMimeType}', codecs='${format.codecs}', " +
+              "size=${format.width}x${format.height}, frameRate=${format.frameRate}, " +
+              "reuseResult=${decoderReuseEvaluation?.result}"
+          )
+        }
+
+        override fun onDroppedVideoFrames(
+          eventTime: AnalyticsListener.EventTime,
+          droppedFrames: Int,
+          elapsedMs: Long
+        ) {
+          Logger.d(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX dropped video frames: " +
+              "count=$droppedFrames, elapsedMs=$elapsedMs"
+          )
+        }
+
+        override fun onVideoFrameProcessingOffset(
+          eventTime: AnalyticsListener.EventTime,
+          totalProcessingOffsetUs: Long,
+          frameCount: Int
+        ) {
+          val averageProcessingOffsetUs = if (frameCount > 0) {
+            totalProcessingOffsetUs / frameCount
+          } else {
+            0L
+          }
+
+          Logger.d(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX video frame processing offset: " +
+              "averageUs=$averageProcessingOffsetUs, totalUs=$totalProcessingOffsetUs, " +
+              "frameCount=$frameCount"
+          )
+        }
+
+        override fun onVideoDisabled(
+          eventTime: AnalyticsListener.EventTime,
+          decoderCounters: DecoderCounters
+        ) {
+          decoderCounters.ensureUpdated()
+          Logger.d(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX video disabled: " +
+              "droppedToKeyframeCount=${decoderCounters.droppedToKeyframeCount}, " +
+              "droppedBufferCount=${decoderCounters.droppedBufferCount}, " +
+              "maxConsecutiveDroppedBufferCount=" +
+              "${decoderCounters.maxConsecutiveDroppedBufferCount}, " +
+              "renderedOutputBufferCount=${decoderCounters.renderedOutputBufferCount}, " +
+              "counters=$decoderCounters"
+          )
+        }
+
+        override fun onVideoCodecError(
+          eventTime: AnalyticsListener.EventTime,
+          videoCodecError: Exception
+        ) {
+          Logger.e(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX video codec error",
+            videoCodecError
+          )
+        }
+
+        override fun onPlayerError(
+          eventTime: AnalyticsListener.EventTime,
+          error: PlaybackException
+        ) {
+          Logger.e(
+            TAG,
+            "$VIDEO_DIAGNOSTIC_PREFIX player error",
+            error
           )
         }
       })
@@ -477,6 +571,7 @@ class ExoPlayerWrapper(
 
   companion object {
     private const val TAG = "ExoPlayerWrapper"
+    private const val VIDEO_DIAGNOSTIC_PREFIX = "VP8_DIAGNOSTIC"
     private const val MAX_BG_AUDIO_DOWNLOAD_WAIT_TIME_MS = 30_000L
 
     const val SEEK_POSITION_DELTA = 100
