@@ -6,6 +6,7 @@ import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.ui.controller.base.Controller
 import com.github.k1rakishou.model.data.descriptor.ChanDescriptor
 import com.github.k1rakishou.model.data.descriptor.PostDescriptor
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 
 interface MediaViewContract {
   val viewerChanDescriptor: ChanDescriptor?
@@ -26,6 +27,7 @@ interface MediaViewContract {
   suspend fun defaultArtworkDrawable(): Drawable?
   fun openAlbum(viewableMedia: ViewableMedia)
   fun reloadAs(pagerPosition: Int, viewableMedia: ViewableMedia)
+  fun onVideoPlaybackCompleted(pagerPosition: Int, videoEndBehavior: VideoEndBehavior)
 
   fun presentController(controller: Controller, animated: Boolean)
 }

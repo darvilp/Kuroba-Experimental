@@ -11,6 +11,7 @@ import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.PlaybackException
 import com.google.android.exoplayer2.Player
@@ -44,7 +45,8 @@ class ExoPlayerWrapper(
   private val fileDataSourceFactory: DataSource.Factory,
   private val contentDataSourceFactory: DataSource.Factory,
   private val mediaViewContract: MediaViewContract,
-  private val onAudioDetected: () -> Unit
+  private val onAudioDetected: () -> Unit,
+  private val onPlaybackEnded: (VideoEndBehavior) -> Unit = {}
 ) {
   private val scope = KurobaCoroutineScope()
   private val reusableExoPlayer by lazy { getOrCreateExoPlayer()  }
@@ -57,6 +59,15 @@ class ExoPlayerWrapper(
     get() = _hasContent
 
   private var firstFrameRendered: CompletableDeferred<MediaLocation>? = null
+  private var activeVideoEndBehavior = VideoEndBehavior.Loop
+
+  private val playbackStateListener = object : Player.Listener {
+    override fun onPlaybackStateChanged(state: Int) {
+      if (state == Player.STATE_ENDED) {
+        onPlaybackEnded(activeVideoEndBehavior)
+      }
+    }
+  }
 
   private val _positionAndDurationFlow = MutableStateFlow(Pair(0L, 0L))
   val positionAndDurationFlow: StateFlow<Pair<Long, Long>>
@@ -197,7 +208,11 @@ class ExoPlayerWrapper(
   }
 
   fun start() {
-    actualExoPlayer.repeatMode = if (kurobaSettings.application.videoAutoLoop.readBlocking()) {
+    activeVideoEndBehavior = kurobaSettings.application.videoEndBehavior.readBlocking()
+    actualExoPlayer.removeListener(playbackStateListener)
+    actualExoPlayer.addListener(playbackStateListener)
+
+    actualExoPlayer.repeatMode = if (activeVideoEndBehavior == VideoEndBehavior.Loop) {
       Player.REPEAT_MODE_ALL
     } else {
       Player.REPEAT_MODE_OFF
@@ -238,6 +253,7 @@ class ExoPlayerWrapper(
 
   fun release() {
     _hasContent = false
+    actualExoPlayer.removeListener(playbackStateListener)
 
     synchronized(reusableExoPlayer) {
       reusableExoPlayer.giveBack()

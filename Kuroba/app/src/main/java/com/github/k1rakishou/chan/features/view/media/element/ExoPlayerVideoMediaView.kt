@@ -15,6 +15,7 @@ import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.MediaViewerControllerViewModel
+import com.github.k1rakishou.chan.features.view.media.MediaViewerVideoEndBehaviorHandler
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHelper
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerCustomPlayerControlView
@@ -85,6 +86,17 @@ class ExoPlayerVideoMediaView(
       onAudioDetected = {
         updateAudioIcon(mediaViewContract.isSoundCurrentlyMuted())
         videoSoundDetected = true
+      },
+      onPlaybackEnded = { videoEndBehavior ->
+        if (shown) {
+          mediaViewState.replayFromStartOnNextShow =
+            MediaViewerVideoEndBehaviorHandler.shouldReplayFromStartWhenRevisited(
+              videoEndBehavior = videoEndBehavior,
+              completedPagerPosition = pagerPosition,
+              totalMediaCount = totalPageItemsCount
+            )
+          mediaViewContract.onVideoPlaybackCompleted(pagerPosition, videoEndBehavior)
+        }
       }
     )
   }
@@ -475,9 +487,18 @@ class ExoPlayerVideoMediaView(
   private suspend fun switchToPlayerViewAndStartPlaying(isLifecycleChange: Boolean) {
     actualVideoPlayerView.setVisibilityFast(VISIBLE)
 
-    if (!isLifecycleChange && kurobaSettings.application.videoAlwaysResetToStart.read()) {
+    val replayAfterAutoAdvance =
+      !isLifecycleChange && mediaViewState.replayFromStartOnNextShow
+    val alwaysResetToStart =
+      !isLifecycleChange && kurobaSettings.application.videoAlwaysResetToStart.read()
+
+    if (replayAfterAutoAdvance || alwaysResetToStart) {
       mediaViewState.resetPosition()
       mainVideoPlayer.resetPosition()
+
+      if (replayAfterAutoAdvance) {
+        mediaViewState.playing = true
+      }
     }
 
     when {
@@ -517,7 +538,8 @@ class ExoPlayerVideoMediaView(
     var prevPosition: Long = -1,
     var prevWindowIndex: Int = -1,
     var videoSoundDetected: Boolean? = null,
-    var playing: Boolean? = null
+    var playing: Boolean? = null,
+    var replayFromStartOnNextShow: Boolean = false
   ) : MediaViewState() {
 
     override fun resetPosition() {
@@ -525,10 +547,17 @@ class ExoPlayerVideoMediaView(
 
       prevPosition = -1
       prevWindowIndex = -1
+      replayFromStartOnNextShow = false
     }
 
     override fun clone(): MediaViewState {
-      return VideoMediaViewState(prevPosition, prevWindowIndex, videoSoundDetected, playing)
+      return VideoMediaViewState(
+        prevPosition,
+        prevWindowIndex,
+        videoSoundDetected,
+        playing,
+        replayFromStartOnNextShow
+      )
     }
 
     override fun updateFrom(other: MediaViewState?) {
@@ -537,6 +566,7 @@ class ExoPlayerVideoMediaView(
         prevWindowIndex = -1
         videoSoundDetected = null
         playing = null
+        replayFromStartOnNextShow = false
         return
       }
 
@@ -548,6 +578,7 @@ class ExoPlayerVideoMediaView(
       this.prevWindowIndex = other.prevWindowIndex
       this.videoSoundDetected = other.videoSoundDetected
       this.playing = other.playing
+      this.replayFromStartOnNextShow = other.replayFromStartOnNextShow
     }
   }
 

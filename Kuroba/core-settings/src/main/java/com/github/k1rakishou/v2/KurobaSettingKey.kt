@@ -79,6 +79,7 @@ sealed class KurobaSettingKey(val raw: String) {
     data object ThreadSearchMode : Application("ThreadSearchMode")
 
     data object VideoAutoLoop : Application("VideoAutoLoop")
+    data object VideoEndBehavior : Application("VideoEndBehavior")
     data object VideoDefaultMuted : Application("VideoDefaultMuted")
     data object HeadsetDefaultMuted : Application("HeadsetDefaultMuted")
     data object VideoAlwaysResetToStart : Application("VideoAlwaysResetToStart")
