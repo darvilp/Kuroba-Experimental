@@ -27,6 +27,7 @@ import com.github.k1rakishou.model.data.descriptor.PostDescriptor
 import com.github.k1rakishou.model.data.post.ChanPostImage
 import com.github.k1rakishou.model.data.post.ChanPostImageType
 import com.github.k1rakishou.v2.KurobaSettings
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,8 +194,8 @@ class MediaViewerControllerViewModel(
     }
   }
 
-  suspend fun videoAutoLoop(): Boolean {
-    return kurobaSettings.application.videoAutoLoop.read()
+  suspend fun videoEndBehavior(): VideoEndBehavior {
+    return kurobaSettings.application.videoEndBehavior.read()
   }
 
   suspend fun hardwareDecoding(): Boolean {

@@ -48,6 +48,18 @@ enum class NetworkContentAutoLoadMode {
   None
 }
 
+enum class VideoEndBehavior {
+  Loop,
+  AutoAdvance,
+  Stop;
+
+  companion object {
+    fun fromLegacyAutoLoop(autoLoop: Boolean): VideoEndBehavior {
+      return if (autoLoop) Loop else Stop
+    }
+  }
+}
+
 enum class CatalogOrThreadSearchMode {
   Filter,
   Highlight

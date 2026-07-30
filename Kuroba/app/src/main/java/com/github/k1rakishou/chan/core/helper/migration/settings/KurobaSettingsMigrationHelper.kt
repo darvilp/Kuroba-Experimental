@@ -45,6 +45,7 @@ import com.github.k1rakishou.v2.parameters.ReorderableBottomNavViewButtons
 import com.github.k1rakishou.v2.parameters.ReorderableMediaViewerActions
 import com.github.k1rakishou.v2.parameters.ReplyMode
 import com.github.k1rakishou.v2.parameters.ThreadDownloaderOptions
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.github.k1rakishou.v2.settings.KurobaBooleanSetting
 import com.github.k1rakishou.v2.settings.KurobaCookieSetting
 import com.github.k1rakishou.v2.settings.KurobaEnumSetting
@@ -488,7 +489,7 @@ class KurobaSettingsMigrationHelper(
       migrateBooleanSetting(prefs, "preference_tap_no_reply", application.tapNoReply)
       migrateBooleanSetting(prefs, "preference_mark_unseen_posts", application.markUnseenPosts)
       migrateBooleanSetting(prefs, "preference_mark_seen_threads", application.markSeenThreads)
-      migrateBooleanSetting(prefs, "preference_video_loop", application.videoAutoLoop)
+      migrateVideoEndBehavior(prefs, "preference_video_loop", application.videoEndBehavior)
       migrateBooleanSetting(prefs, "preference_video_default_muted", application.videoDefaultMuted)
       migrateBooleanSetting(prefs, "preference_headset_default_muted", application.headsetDefaultMuted)
       migrateBooleanSetting(prefs, "preference_video_always_reset_to_start", application.videoAlwaysResetToStart)
@@ -540,6 +541,25 @@ class KurobaSettingsMigrationHelper(
       }
 
       Logger.debug(TAG) { "migrateBooleanSetting() ${name} -> ${newSetting.key.raw}, value: ${value}" }
+      newSetting.writeBlocking(value)
+    }
+  }
+
+  private fun migrateVideoEndBehavior(
+    prefs: SharedPreferencesSettingProvider,
+    name: String,
+    newSetting: KurobaEnumSetting<VideoEndBehavior>
+  ) {
+    tryMigrateSetting(newSetting.key) {
+      val legacyAutoLoop = prefs.getBoolean(name, true)
+      val value = VideoEndBehavior.fromLegacyAutoLoop(legacyAutoLoop)
+      if (value == newSetting.default) {
+        return@tryMigrateSetting
+      }
+
+      Logger.debug(TAG) {
+        "migrateVideoEndBehavior() ${name} -> ${newSetting.key.raw}, value: ${value}"
+      }
       newSetting.writeBlocking(value)
     }
   }

@@ -183,23 +183,24 @@ class MPVView(
         MPVLib.mpvSetOptionString("vo", if (gpuNext) "gpu-next" else "gpu")
     }
 
-    fun playFile(filePath: String, videoAutoLoop: Boolean) {
+    fun playFile(
+        filePath: String,
+        loopFile: Boolean,
+        keepOpenAtEnd: Boolean
+    ) {
         if (!MPVLib.librariesAreLoaded()) {
             Logger.d(TAG, "playFile() librariesAreLoaded: false")
             return
         }
+
+        MPVLib.mpvSetPropertyString("loop-file", if (loopFile) "inf" else "no")
+        MPVLib.mpvSetPropertyString("keep-open", if (keepOpenAtEnd) "yes" else "no")
 
         if (!surfaceAttached) {
             this.filePath = filePath
         } else {
             this.filePath = null
             MPVLib.mpvCommand(arrayOf("loadfile", filePath))
-        }
-
-        if (videoAutoLoop) {
-            MPVLib.mpvSetOptionString("loop-file", "inf")
-        } else {
-            MPVLib.mpvSetOptionString("loop-file", "no")
         }
     }
 
@@ -211,6 +212,7 @@ class MPVView(
             Property("demuxer-cache-duration", MPV_FORMAT_INT64),
             Property("duration/full", MPV_FORMAT_DOUBLE),
             Property("pause", MPV_FORMAT_FLAG),
+            Property("eof-reached", MPV_FORMAT_FLAG),
             Property("audio", MPV_FORMAT_FLAG),
             Property("mute", MPV_FORMAT_STRING),
             Property("video-params", MPV_FORMAT_NONE),
@@ -237,6 +239,9 @@ class MPVView(
 
     val duration: Int?
         get() = MPVLib.mpvGetPropertyInt("duration")
+
+    val eofReached: Boolean?
+        get() = MPVLib.mpvGetPropertyBoolean("eof-reached")
 
     val demuxerCacheDuration: Int?
         get() = MPVLib.mpvGetPropertyInt("demuxer-cache-duration")
