@@ -2,6 +2,7 @@ package com.github.k1rakishou.chan.features.view.media.helper
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -422,7 +423,28 @@ class ExoPlayerWrapper(
         return exoPlayer
       }
 
-      val newExoPlayer = ExoPlayer.Builder(context).build()
+      val useVp8OperatingRateWorkaround = Vp8OperatingRatePolicy.shouldApply(Build.MANUFACTURER)
+      val newExoPlayer = if (useVp8OperatingRateWorkaround) {
+        Logger.d(
+          TAG,
+          "${SamsungVp8OperatingRateRenderersFactory.VIDEO_DIAGNOSTIC_PREFIX} " +
+            "enabling Samsung VP8 operating-rate workaround, " +
+            "manufacturer='${Build.MANUFACTURER}', model='${Build.MODEL}', " +
+            "sdk=${Build.VERSION.SDK_INT}"
+        )
+
+        ExoPlayer.Builder(
+          context,
+          SamsungVp8OperatingRateRenderersFactory(context)
+        ).build()
+      } else {
+        ExoPlayer.Builder(context).build()
+      }
+
+      if (useVp8OperatingRateWorkaround) {
+        newExoPlayer.addAnalyticsListener(Vp8PlaybackDiagnostics())
+      }
+
       val newReusableExoPlayer = ReusableExoPlayer(isUsed = true, newExoPlayer)
       reusableExoPlayerCache.add(newReusableExoPlayer)
 
