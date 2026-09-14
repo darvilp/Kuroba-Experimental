@@ -4,7 +4,7 @@ import android.content.Context
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 
-class AppMigration_V3_V4(
+class AppMigrationV3ToV4(
   private val kurobaSettings: KurobaSettings
 ) : ApplicationMigration {
   override val version: Int

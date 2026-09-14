@@ -23,7 +23,7 @@ class ApplicationMigrationHelper(
     AppMigration_V0_V1(),
     AppMigration_V1_V2(),
     AppMigration_V2_V3(),
-    AppMigration_V3_V4(kurobaSettings),
+    AppMigrationV3ToV4(kurobaSettings),
   )
 
   init {

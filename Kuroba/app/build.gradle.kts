@@ -33,11 +33,27 @@ val gitHashProvider = providers.exec {
     commandLine("git", "rev-parse", "HEAD")
 }.standardOutput.asText.map { it.trim() }
 
+val experimentalRelease = providers.gradleProperty("experimentalRelease")
+    .map { it.toBooleanStrict() }
+    .getOrElse(false)
+
+if (experimentalRelease) {
+    val gitStatus = providers.exec {
+        commandLine("git", "status", "--porcelain")
+    }.standardOutput.asText.get().trim()
+    require(gitStatus.isEmpty()) {
+        "Experimental APKs require a clean checkout. Commit all source changes before building."
+    }
+}
+
 android {
     namespace = "com.github.k1rakishou.chan"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     val kurobaBuildType = KurobaBuildType.fromRaw(project.findProperty("buildType")?.toString()?.toInt())
+    require(!experimentalRelease || kurobaBuildType == KurobaBuildType.Dev) {
+        "Experimental releases must retain Dev runtime behavior. Use -PbuildType=2."
+    }
     when (kurobaBuildType) {
         KurobaBuildType.Stable -> println("Using KurobaBuildType.Stable")
         KurobaBuildType.Beta -> println("Using KurobaBuildType.Beta")
@@ -78,6 +94,16 @@ android {
         versionCode = 10344
         versionName = "v1.3.44"
 
+        if (experimentalRelease) {
+            val experimentalVersion = Properties().apply {
+                rootProject.file("experimental-version.properties").inputStream().use { load(it) }
+            }
+            applicationIdSuffix = ".experimental"
+            manifestPlaceholders["appName"] = "KurobaEx Experimental"
+            versionCode = experimentalVersion.getProperty("versionCode").toInt()
+            versionName = experimentalVersion.getProperty("versionName")
+        }
+
         configurations.configureEach {
             resolutionStrategy {
                 force(libs.emoji2)
@@ -90,6 +116,21 @@ android {
 
     // signingConfigs must come before buildTypes
     signingConfigs {
+        if (experimentalRelease) {
+            fun signingValue(name: String): String = providers.environmentVariable(name).orNull
+                ?.takeIf { it.isNotBlank() }
+                ?: error("Missing experimental signing environment variable: $name")
+
+            create("experimental") {
+                storeFile = file(signingValue("KUROBA_EXPERIMENTAL_KEYSTORE"))
+                storePassword = signingValue("KUROBA_EXPERIMENTAL_STORE_PASSWORD")
+                keyAlias = signingValue("KUROBA_EXPERIMENTAL_KEY_ALIAS")
+                keyPassword = signingValue("KUROBA_EXPERIMENTAL_KEY_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+
         val releasePropsFile = file("release.properties")
         if (releasePropsFile.exists()) {
             val props = Properties().apply {
@@ -135,7 +176,9 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard.cfg")
             isDebuggable = false
-            if (signingConfigs.names.contains("release")) {
+            if (experimentalRelease) {
+                signingConfig = signingConfigs.getByName("experimental")
+            } else if (signingConfigs.names.contains("release")) {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
@@ -155,7 +198,7 @@ android {
         variant.outputs
             .map { it as BaseVariantOutputImpl }
             .forEach { output ->
-                val apkNameSuffix = when (kurobaBuildType) {
+                val apkNameSuffix = if (experimentalRelease) "experimental" else when (kurobaBuildType) {
                   KurobaBuildType.Stable -> ""
                   KurobaBuildType.Beta -> "beta"
                   KurobaBuildType.Dev -> "personal"

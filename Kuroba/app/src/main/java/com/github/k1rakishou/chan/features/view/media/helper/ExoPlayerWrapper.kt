@@ -69,6 +69,7 @@ class ExoPlayerWrapper(
 
   private var firstFrameRendered: CompletableDeferred<MediaLocation>? = null
   private var activeVideoEndBehavior = VideoEndBehavior.Loop
+  private var playbackEndBehaviorConfigured = false
 
   private val playbackStateListener = object : Player.Listener {
     override fun onPlaybackStateChanged(state: Int) {
@@ -91,6 +92,7 @@ class ExoPlayerWrapper(
     coroutineScope {
       val mediaSource = createMediaSource(viewableMedia, mediaLocation)
 
+      clearPlaybackEndBehavior()
       clearPlaybackListeners()
       actualExoPlayer.stop()
       actualExoPlayer.playWhenReady = false
@@ -129,6 +131,9 @@ class ExoPlayerWrapper(
 
       try {
         _hasContent = withTimeout(MAX_BG_AUDIO_DOWNLOAD_WAIT_TIME_MS) { awaitForContentOrError() }
+        if (_hasContent) {
+          configurePlaybackEndBehavior()
+        }
       } catch (error: Throwable) {
         clearPlaybackListeners()
         throw error
@@ -217,15 +222,7 @@ class ExoPlayerWrapper(
   }
 
   fun start() {
-    activeVideoEndBehavior = kurobaSettings.application.videoEndBehavior.readBlocking()
-    actualExoPlayer.removeListener(playbackStateListener)
-    actualExoPlayer.addListener(playbackStateListener)
-
-    actualExoPlayer.repeatMode = if (activeVideoEndBehavior == VideoEndBehavior.Loop) {
-      Player.REPEAT_MODE_ALL
-    } else {
-      Player.REPEAT_MODE_OFF
-    }
+    configurePlaybackEndBehavior()
 
     actualExoPlayer.volume = if (mediaViewContract.isSoundCurrentlyMuted()) {
       0f
@@ -265,7 +262,7 @@ class ExoPlayerWrapper(
     cancelActivePreload = null
 
     _hasContent = false
-    actualExoPlayer.removeListener(playbackStateListener)
+    clearPlaybackEndBehavior()
 
     timelineUpdateJob?.cancel()
     timelineUpdateJob = null
@@ -287,6 +284,7 @@ class ExoPlayerWrapper(
     cancelActivePreload = null
 
     _hasContent = false
+    clearPlaybackEndBehavior()
 
     timelineUpdateJob?.cancel()
     timelineUpdateJob = null
@@ -390,6 +388,32 @@ class ExoPlayerWrapper(
       actualExoPlayer.removeAnalyticsListener(listener)
     }
     audioDetectionListener = null
+  }
+
+  private fun configurePlaybackEndBehavior() {
+    activeVideoEndBehavior = kurobaSettings.application.videoEndBehavior.readBlocking()
+
+    if (playbackEndBehaviorConfigured) {
+      actualExoPlayer.removeListener(playbackStateListener)
+    }
+
+    actualExoPlayer.addListener(playbackStateListener)
+    playbackEndBehaviorConfigured = true
+
+    actualExoPlayer.repeatMode = if (activeVideoEndBehavior == VideoEndBehavior.Loop) {
+      Player.REPEAT_MODE_ALL
+    } else {
+      Player.REPEAT_MODE_OFF
+    }
+  }
+
+  private fun clearPlaybackEndBehavior() {
+    if (!playbackEndBehaviorConfigured) {
+      return
+    }
+
+    actualExoPlayer.removeListener(playbackStateListener)
+    playbackEndBehaviorConfigured = false
   }
 
   private fun clearFirstFrameListener(listener: Player.Listener) {
