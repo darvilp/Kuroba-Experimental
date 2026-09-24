@@ -69,7 +69,10 @@ def verify_release_commit(release, tag, commit):
             raise ValueError('Release tag points to a different commit')
         return
     # A new draft can precede creation of its tag, but its target must be the exact SHA.
-    if 'HTTP 404' in response.stderr and release['draft'] and release['target_commitish'] == commit:
+    missing_tag = 'HTTP 404' in response.stderr or (
+        'HTTP 422' in response.stderr and f'No commit found for SHA: {tag}' in response.stderr
+    )
+    if missing_tag and release['draft'] and release['target_commitish'] == commit:
         return
     raise ValueError('Cannot verify the release commit')
 

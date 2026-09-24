@@ -56,6 +56,11 @@ class ValidateBundleTest(unittest.TestCase):
         with patch('publish_experimental_release.gh', return_value=subprocess.CompletedProcess([], 1, '', 'HTTP 404')):
             verify_release_commit({'draft': True, 'target_commitish': self.commit}, 'tag', self.commit)
 
+    def test_accepts_github_422_for_exact_draft_before_tag_exists(self):
+        error = 'gh: No commit found for SHA: tag (HTTP 422)'
+        with patch('publish_experimental_release.gh', return_value=subprocess.CompletedProcess([], 1, '', error)):
+            verify_release_commit({'draft': True, 'target_commitish': self.commit}, 'tag', self.commit)
+
     def test_rejects_draft_with_a_moving_branch_target(self):
         with patch('publish_experimental_release.gh', return_value=subprocess.CompletedProcess([], 1, '', 'HTTP 404')):
             with self.assertRaisesRegex(ValueError, 'commit'):
