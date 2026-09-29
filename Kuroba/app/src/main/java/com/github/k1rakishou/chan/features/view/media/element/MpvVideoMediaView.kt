@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.net.Uri
+import android.os.SystemClock
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
@@ -24,6 +25,9 @@ import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.MediaViewerControllerViewModel
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHelper
+import com.github.k1rakishou.chan.features.view.media.helper.MediaViewerBottomContainer
+import com.github.k1rakishou.chan.features.view.media.helper.MpvPlaybackProgressTracker
+import com.github.k1rakishou.chan.features.view.media.soundpost.MpvSyncTarget
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerActionStrip
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
 import com.github.k1rakishou.chan.ui.controller.FloatingListMenuController
@@ -37,16 +41,19 @@ import com.github.k1rakishou.chan.utils.BackgroundUtils
 import com.github.k1rakishou.chan.utils.setEnabledFast
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.common.errorMessageOrClassName
+import com.github.k1rakishou.common.updateHeight
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
 import com.github.k1rakishou.v2.KurobaSettings
 import com.google.android.exoplayer2.ui.DefaultTimeBar
 import com.google.android.exoplayer2.ui.TimeBar
-import com.google.android.exoplayer2.upstream.DataSource
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
 
 @SuppressLint("ViewConstructor", "ClickableViewAccessibility")
 class MpvVideoMediaView(
@@ -57,9 +64,7 @@ class MpvVideoMediaView(
   private val viewModel: MediaViewerControllerViewModel,
   private val onThumbnailFullyLoadedFunc: () -> Unit,
   private val isSystemUiHidden: () -> Boolean,
-  cachedHttpDataSourceFactory: DataSource.Factory,
-  fileDataSourceFactory: DataSource.Factory,
-  contentDataSourceFactory: DataSource.Factory,
+  private val requestProperties: Map<String, String>,
   override val viewableMedia: ViewableMedia.Video,
   override val pagerPosition: Int,
   override val totalPageItemsCount: Int,
@@ -69,9 +74,6 @@ class MpvVideoMediaView(
   mediaViewContract = mediaViewContract,
   kurobaSettings = kurobaSettings,
   mediaViewState = initialMediaViewState,
-  cachedHttpDataSourceFactory = cachedHttpDataSourceFactory,
-  fileDataSourceFactory = fileDataSourceFactory,
-  contentDataSourceFactory = contentDataSourceFactory,
 ), MPVLib.EventObserver {
 
   private val thumbnailMediaView: ThumbnailMediaView
@@ -101,8 +103,51 @@ class MpvVideoMediaView(
   private var hideShowAnimation: ValueAnimator? = null
   private var showBufferingJob: Job? = null
   private var playJob: Job? = null
+  private var playbackPosUpdateJob: Job? = null
   private var playing = false
+  private var lastDisplayedDurationSeconds = -1
 
+  // Between MPV_EVENT_FILE_LOADED and MPV_EVENT_END_FILE
+  private var mpvFileLoaded = false
+
+  // Between MPV_EVENT_START_FILE and MPV_EVENT_END_FILE
+  private var mpvFileStarted = false
+  private var loadFailureCheckJob: Job? = null
+
+  // Playback is stuck waiting for the network (a seek that can't read data, cache underrun)
+  private var mpvSeeking = false
+  private var mpvPausedForCache = false
+  private var stallIndicatorJob: Job? = null
+  private var stallIndicatorShown = false
+  private var lastStallCheckTimeMs = 0L
+
+  // Requested HW/SW decoding while mpv is switching the decoder
+  private var requestedHardwareDecoding: Boolean? = null
+  private var requestedHardwareDecodingTimeMs = 0L
+  private var lastPlayPauseShowsPlayIcon: Boolean? = null
+
+  // The last error message logged by mpv since the current file was started. Written on the mpv event thread.
+  @Volatile
+  private var lastMpvErrorMessage: String? = null
+
+  private val mpvLogObserver = MPVLib.LogObserver { prefix, level, text ->
+    // mpv is global, only collect errors while this page is the one using it
+    // Only FATAL and ERROR. NONE is not a real message level (it's only used to disable logging) but skip it
+    // just in case.
+    val isError = level > MPVLib.mpvLogLevel.MPV_LOG_LEVEL_NONE && level <= MPVLib.mpvLogLevel.MPV_LOG_LEVEL_ERROR
+    if (!shown || !isError) {
+      return@LogObserver
+    }
+
+    val message = text.trim()
+    if (message.isNotEmpty()) {
+      lastMpvErrorMessage = "[${prefix}] ${message}"
+    }
+  }
+
+  private val playbackProgressTracker = MpvPlaybackProgressTracker()
+
+  override val soundPostControlledByMediaControls: Boolean = true
   override val hasContent: Boolean
     get() = _hasContent
   override val mediaViewerActionStrip: MediaViewerActionStrip?
@@ -131,6 +176,10 @@ class MpvVideoMediaView(
     mpvPlayPause = findViewById(R.id.mpv_play_pause)
     mpvControlsRoot = findViewById(R.id.mpv_controls_view_root)
     mpvControlsBottomInset = findViewById(R.id.mpv_controls_insets_view)
+
+    // Draw the controls (with their background) behind the navigation bar instead of above it
+    findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
+      .setBottomInsetConsumer { bottomInset -> mpvControlsBottomInset.updateHeight(bottomInset) }
     mpvSettings = findViewById(R.id.mpv_settings)
     mpvErrorMessage = findViewById(R.id.error_message)
 
@@ -152,26 +201,47 @@ class MpvVideoMediaView(
       }
     }
 
-    @Suppress("ForbiddenComment")
     mpvHwSw.setOnClickListener {
       scope.launch {
-        // TODO: HW+
-        if (actualVideoPlayerView.hwdecActive) {
-          snackbarManager.toast(messageId = R.string.mpv_switching_to_sw_decoding)
-          viewModel.updateHardwareDecoding(false)
-        } else {
-          snackbarManager.toast(messageId = R.string.mpv_switching_to_hw_decoding)
-          viewModel.updateHardwareDecoding(true)
+        if (!mpvFileLoaded || !isMpvOwnedByThisView()) {
+          return@launch
         }
 
-        actualVideoPlayerView.cycleHwdec()
+        // Toggle what is currently displayed (which is the requested value while a switch is in progress)
+        // instead of hwdec-current which only changes once mpv has re-initialized the decoder.
+        val enableHardwareDecoding = !isHardwareDecodingDisplayed()
+
+        if (enableHardwareDecoding) {
+          snackbarManager.toast(messageId = R.string.mpv_switching_to_hw_decoding, toastId = HWDEC_TOAST_ID)
+        } else {
+          snackbarManager.toast(messageId = R.string.mpv_switching_to_sw_decoding, toastId = HWDEC_TOAST_ID)
+        }
+
+        viewModel.updateHardwareDecoding(enableHardwareDecoding)
+        actualVideoPlayerView.setHardwareDecoding(enableHardwareDecoding)
+
+        requestedHardwareDecoding = enableHardwareDecoding
+        requestedHardwareDecodingTimeMs = SystemClock.elapsedRealtime()
+        updateDecoderButton()
       }
     }
     mpvPlayPause.setOnClickListener {
-      if (playJob == null && !playing) {
-        startPlayingVideo(isLifecycleChange = false)
-      } else if (playing) {
-        actualVideoPlayerView.cyclePause()
+      when {
+        playJob == null && !playing -> {
+          startPlayingVideo(isLifecycleChange = false, isForced = true)
+        }
+        playing && mpvFileLoaded && isMpvOwnedByThisView() -> {
+          actualVideoPlayerView.cyclePause()
+          updatePlayPauseButton()
+        }
+        playing && !mpvFileStarted && isMpvOwnedByThisView() -> {
+          // The video has ended (loop disabled) and mpv is idle, "cycle pause" does nothing in this state.
+          // Load the file again to play it from the start.
+          scope.launch {
+            mediaViewState.resetPosition()
+            setFileToPlay(context)
+          }
+        }
       }
     }
 
@@ -181,14 +251,16 @@ class MpvVideoMediaView(
       }
 
       override fun onScrubMove(timeBar: TimeBar, position: Long) {
+        mpvVideoPosition.text = MpvUtils.prettyTime((position / 1000L).toInt())
       }
 
       override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
         userIsOperatingSeekbar = false
 
-        if (!canceled) {
-          updatePlaybackPos(_position = position, _demuxerCacheDuration = null)
-          actualVideoPlayerView.timePos = position.toDouble()
+        if (!canceled && isMpvOwnedByThisView()) {
+          playbackProgressTracker.onSeekRequested(position, SystemClock.elapsedRealtime())
+          actualVideoPlayerView.timePos = position.toDouble() / 1000.0
+          updatePlaybackPos()
         }
       }
     })
@@ -228,7 +300,7 @@ class MpvVideoMediaView(
         mediaViewContract = mediaViewContract,
         tryPreloadingFunc = {
           if (playJob == null) {
-            startPlayingVideo(isLifecycleChange = false)
+            startPlayingVideo(isLifecycleChange = false, isForced = true)
             true
           } else {
             false
@@ -297,6 +369,7 @@ class MpvVideoMediaView(
       ThumbnailMediaView.ThumbnailMediaViewParameters(
         isOriginalMediaPlayable = true,
         viewableMedia = viewableMedia,
+        isMainMediaLoaded = { hasContent },
       ),
       onThumbnailFullyLoaded = {
         onThumbnailFullyLoadedFunc()
@@ -313,7 +386,7 @@ class MpvVideoMediaView(
     thumbnailMediaView.show()
 
     if (canAutoLoad(cacheFileType = CacheFileType.PostMediaFull)) {
-      startPlayingVideo(isLifecycleChange = isLifecycleChange)
+      startPlayingVideo(isLifecycleChange = isLifecycleChange, isForced = false)
     }
   }
 
@@ -332,6 +405,8 @@ class MpvVideoMediaView(
 
   override fun unbind() {
     destroyPlayer(isPausing = false, isDestroying = true, isBecomingInactive = false)
+    // destroyPlayer() skips the cleanup when nothing is playing, MPVLib keeps observers in a static list
+    MPVLib.removeLogObserver(mpvLogObserver)
 
     thumbnailMediaView.unbind()
     closeMediaActionHelper.onDestroy()
@@ -358,15 +433,12 @@ class MpvVideoMediaView(
       return
     }
 
-    BackgroundUtils.runOnMainThread { eventPropertyUi(property, value) }
+    // The value itself is not used, the UI reads the current state from mpv (see updatePlayPauseButton())
+    BackgroundUtils.runOnMainThread { booleanPropertyChangedUi(property) }
   }
 
   override fun eventProperty(property: String, value: Long) {
-    if (!shown) {
-      return
-    }
-
-    BackgroundUtils.runOnMainThread { eventPropertyUi(property, value) }
+    // no-op, there are no observed INT64 properties (the playback position is polled)
   }
 
   override fun eventProperty(property: String, value: String) {
@@ -416,17 +488,27 @@ class MpvVideoMediaView(
       return
     }
 
+    stopPlaybackPosUpdates()
+    mpvFileLoaded = false
+    mpvFileStarted = false
+    resetStallState()
+    loadFailureCheckJob?.cancel()
+    loadFailureCheckJob = null
+
     actualVideoPlayerView.destroy()
     actualVideoPlayerView.removeObserver(this)
+    MPVLib.removeLogObserver(mpvLogObserver)
 
     thumbnailMediaView.setVisibilityFast(VISIBLE)
     actualVideoPlayerView.setVisibilityFast(GONE)
 
     actualVideoPlayerViewContainer.removeAllViews()
     playing = false
+    requestedHardwareDecoding = null
+    updatePlayPauseButton()
   }
 
-  private fun startPlayingVideo(isLifecycleChange: Boolean) {
+  private fun startPlayingVideo(isLifecycleChange: Boolean, isForced: Boolean) {
     playJob?.cancel()
     playJob = null
 
@@ -440,6 +522,14 @@ class MpvVideoMediaView(
         }
 
         if (playing && isLifecycleChange && !pauseInBg()) {
+          startPlaybackPosUpdates()
+
+          startSoundPostPlayback(
+            target = MpvSyncTarget(actualVideoPlayerView, isFileLoaded = { mpvFileLoaded }),
+            isForced = isForced,
+            isLifecycleChange = isLifecycleChange
+          )
+
           playJob = null
           return@launch
         }
@@ -477,6 +567,9 @@ class MpvVideoMediaView(
           mpvUseConfigFile = viewModel.mpvUseConfigFile()
         )
         actualVideoPlayerView.addObserver(this@MpvVideoMediaView)
+        // Remove first to never register the same observer twice
+        MPVLib.removeLogObserver(mpvLogObserver)
+        MPVLib.addLogObserver(mpvLogObserver)
 
         if (!isLifecycleChange && viewModel.videoAlwaysResetToStart()) {
           mediaViewState.resetPosition()
@@ -486,6 +579,14 @@ class MpvVideoMediaView(
         actualVideoPlayerView.setVisibilityFast(VISIBLE)
 
         playing = true
+        startPlaybackPosUpdates()
+
+        // The target is not ready until mpv loads the file, the sound will wait for it
+        startSoundPostPlayback(
+          target = MpvSyncTarget(actualVideoPlayerView, isFileLoaded = { mpvFileLoaded }),
+          isForced = isForced,
+          isLifecycleChange = isLifecycleChange
+        )
 
         playJob = null
         return@launch
@@ -548,18 +649,15 @@ class MpvVideoMediaView(
         mpvHwSw.setEnabledFast(true)
         mpvSettings.setEnabledFast(true)
 
-        if (_hasAudio) {
+        // The mute button also controls the sound post audio
+        if (_hasAudio || hasSoundPost) {
           mpvMuteUnmute.setEnabledFast(true)
         } else {
           mpvMuteUnmute.setEnabledFast(false)
         }
 
-        if (actualVideoPlayerView.hwdecActive) {
-          mpvHwSw.text = getString(R.string.mpv_hw_decoding)
-        } else {
-          mpvHwSw.text = getString(R.string.mpv_sw_decoding)
-        }
-
+        updateDecoderButton()
+        updatePlayPauseButton()
         updateMuteUnmuteButtonState()
 
         bufferingProgressView.setVisibilityFast(INVISIBLE)
@@ -574,6 +672,8 @@ class MpvVideoMediaView(
       }
       MPVLib.mpvEventId.MPV_EVENT_FILE_LOADED -> {
         Logger.d(TAG, "onEvent MPV_EVENT_FILE_LOADED")
+        mpvFileLoaded = true
+        updatePlayPauseButton()
 
         if (mediaViewContract.isSoundCurrentlyMuted()) {
           actualVideoPlayerView.muteUnmute(true)
@@ -583,12 +683,35 @@ class MpvVideoMediaView(
       }
       MPVLib.mpvEventId.MPV_EVENT_START_FILE -> {
         Logger.d(TAG, "onEvent MPV_EVENT_START_FILE")
+        mpvFileLoaded = false
+        mpvFileStarted = true
+        lastMpvErrorMessage = null
+        resetStallState()
+
+        loadFailureCheckJob?.cancel()
+        loadFailureCheckJob = null
       }
       MPVLib.mpvEventId.MPV_EVENT_END_FILE -> {
         Logger.d(TAG, "onEvent MPV_EVENT_END_FILE")
+
+        if (mpvFileLoaded) {
+          // One last update so that the seekbar reaches the end
+          updatePlaybackPos()
+        } else if (mpvFileStarted) {
+          // The file has ended before it was loaded: either mpv failed to open it (network error, bad file
+          // etc.) or another file has replaced it.
+          checkVideoLoadFailed()
+        }
+
+        mpvFileLoaded = false
+        mpvFileStarted = false
+        resetStallState()
+        updatePlayPauseButton()
       }
       MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN -> {
         Logger.d(TAG, "onEvent MPV_EVENT_SHUTDOWN")
+        mpvFileLoaded = false
+        resetStallState()
       }
       MPVLib.mpvEventId.MPV_EVENT_NONE,
       MPVLib.mpvEventId.MPV_EVENT_LOG_MESSAGE,
@@ -608,7 +731,7 @@ class MpvVideoMediaView(
   }
 
   private fun updateMuteUnmuteButtonState() {
-    if (_firstLoadOccurred && !_hasAudio) {
+    if (_firstLoadOccurred && !_hasAudio && !hasSoundPost) {
       mpvMuteUnmute.setImageResource(R.drawable.ic_volume_off_white_24dp)
       return
     }
@@ -620,28 +743,12 @@ class MpvVideoMediaView(
     }
   }
 
-
   private fun eventPropertyUi(property: String) {
     if (!shown) {
       return
     }
 
     // no-op
-  }
-
-  private fun eventPropertyUi(property: String, value: Long) {
-    if (!shown) {
-      return
-    }
-
-    when (property) {
-      "time-pos" -> {
-        updatePlaybackPos(_position = value, _demuxerCacheDuration = null)
-      }
-      "demuxer-cache-duration" -> {
-        updatePlaybackPos(_position = null, _demuxerCacheDuration = value)
-      }
-    }
   }
 
   private fun eventPropertyUi(property: String, value: String) {
@@ -654,13 +761,13 @@ class MpvVideoMediaView(
     }
   }
 
-  private fun eventPropertyUi(property: String, value: Boolean) {
+  private fun booleanPropertyChangedUi(property: String) {
     if (!shown) {
       return
     }
 
     when (property) {
-      "pause" -> updatePlaybackStatus(value)
+      "pause" -> updatePlayPauseButton()
     }
   }
 
@@ -670,7 +777,7 @@ class MpvVideoMediaView(
     }
 
     when (property) {
-      "duration/full" -> updatePlaybackDuration(value)
+      "duration/full" -> updatePlaybackDuration((value * 1000.0).toLong())
     }
   }
 
@@ -680,8 +787,20 @@ class MpvVideoMediaView(
       return false
     }
 
+    // Only pass the headers when streaming from the remote server, not when playing a local or cached file
+    val remoteMediaLocation = viewableMedia.mediaLocation as? MediaLocation.Remote
+    val isStreaming = remoteMediaLocation != null && filePath == remoteMediaLocation.urlRaw
+    val headers: Map<String, String> = if (isStreaming) {
+      requestProperties
+    } else {
+      emptyMap()
+    }
+
+    resetPlaybackProgress(isStreaming = isStreaming)
+
     actualVideoPlayerView.playFile(
       filePath = filePath,
+      headers = headers,
       videoAutoLoop = viewModel.videoAutoLoop()
     )
 
@@ -721,8 +840,25 @@ class MpvVideoMediaView(
     }
   }
 
-  private fun updatePlaybackStatus(paused: Boolean) {
-    val imageDrawable = if (paused) {
+  /**
+   * The icon is derived from the actual player state instead of the "pause" change events alone. Those events
+   * are dropped while the page is hidden and the initial value is sent before the observer is registered. Also
+   * when the video has ended (loop disabled) mpv is not paused but nothing is playing.
+   * */
+  private fun updatePlayPauseButton() {
+    val showPlayIcon = if (playing && mpvFileLoaded && isMpvOwnedByThisView()) {
+      actualVideoPlayerView.paused ?: true
+    } else {
+      true
+    }
+
+    if (showPlayIcon == lastPlayPauseShowsPlayIcon) {
+      return
+    }
+
+    lastPlayPauseShowsPlayIcon = showPlayIcon
+
+    val imageDrawable = if (showPlayIcon) {
       com.google.android.exoplayer2.ui.R.drawable.exo_controls_play
     } else {
       com.google.android.exoplayer2.ui.R.drawable.exo_controls_pause
@@ -731,41 +867,218 @@ class MpvVideoMediaView(
     mpvPlayPause.setImageResource(imageDrawable)
   }
 
-  private fun updatePlaybackPos(_position: Long?, _demuxerCacheDuration: Long?) {
-    val position = _position
-      ?: actualVideoPlayerView.timePos?.toLong()
-      ?: 0L
-    val demuxerCacheDuration = _demuxerCacheDuration
-      ?: actualVideoPlayerView.demuxerCacheDuration
-      ?: 0L
+  private fun pollStallState() {
+    // "seeking" stays true until the playback restarts after a seek (e.g. a seek that can't read from the
+    // network), "paused-for-cache" is true while the playback waits for the cache to fill up.
+    mpvSeeking = MPVLib.mpvGetPropertyBoolean("seeking") == true
+    mpvPausedForCache = MPVLib.mpvGetPropertyBoolean("paused-for-cache") == true
 
-    mpvVideoPosition.text = MpvUtils.prettyTime(position.toInt())
+    updateStallIndicator()
+  }
+
+  private fun updateStallIndicator() {
+    // Before the file is loaded the initial loading indicator (showBufferingJob) is used instead
+    val stalled = mpvFileLoaded && (mpvSeeking || mpvPausedForCache)
+
+    if (stalled) {
+      if (stallIndicatorShown || stallIndicatorJob != null) {
+        return
+      }
+
+      stallIndicatorJob = scope.launch {
+        // Don't flicker on normal (fast) seeks
+        delay(STALL_INDICATOR_DELAY_MS)
+        stallIndicatorJob = null
+
+        if (shown && mpvFileLoaded && (mpvSeeking || mpvPausedForCache)) {
+          stallIndicatorShown = true
+          bufferingProgressView.setVisibilityFast(VISIBLE)
+        }
+      }
+
+      return
+    }
+
+    hideStallIndicator()
+  }
+
+  private fun hideStallIndicator() {
+    stallIndicatorJob?.cancel()
+    stallIndicatorJob = null
+
+    if (stallIndicatorShown) {
+      stallIndicatorShown = false
+      bufferingProgressView.setVisibilityFast(INVISIBLE)
+    }
+  }
+
+  private fun resetStallState() {
+    mpvSeeking = false
+    mpvPausedForCache = false
+    hideStallIndicator()
+  }
+
+  private fun checkVideoLoadFailed() {
+    loadFailureCheckJob?.cancel()
+    loadFailureCheckJob = scope.launch {
+      // When a file is replaced by another one (loadfile) mpv immediately starts the next file. When loading
+      // has failed there is no next file and mpv becomes idle. Give it a moment to get there.
+      delay(LOAD_FAILURE_CHECK_DELAY_MS)
+      loadFailureCheckJob = null
+
+      if (!shown || !playing || mpvFileStarted || mpvFileLoaded || !isMpvOwnedByThisView()) {
+        return@launch
+      }
+
+      if (MPVLib.mpvGetPropertyBoolean("idle-active") != true) {
+        return@launch
+      }
+
+      onVideoLoadFailed(lastMpvErrorMessage)
+    }
+  }
+
+  private fun onVideoLoadFailed(mpvErrorMessage: String?) {
+    val reason = mpvErrorMessage ?: getString(R.string.mpv_unknown_error)
+    Logger.e(TAG, "onVideoLoadFailed(${viewableMedia.mediaLocation}) reason: ${reason}")
+
+    showBufferingJob?.cancel()
+    showBufferingJob = null
+    bufferingProgressView.setVisibilityFast(INVISIBLE)
+
+    // Stop mpv so that it doesn't keep hanging around idle, the user can tap the thumbnail to retry
+    destroyPlayer(isPausing = false, isDestroying = true, isBecomingInactive = false)
+    _firstLoadOccurred = false
+
+    this.mpvErrorMessage.text = getString(R.string.mpv_failed_to_load_video, reason)
+    this.mpvErrorMessage.setVisibilityFast(VISIBLE)
+
+    // Same toast id so that repeated failures replace the snackbar instead of stacking new ones
+    snackbarManager.errorToast(
+      message = getString(R.string.image_failed_video_error, reason),
+      toastId = VIDEO_LOAD_ERROR_TOAST_ID
+    )
+  }
+
+  private fun isMpvOwnedByThisView(): Boolean {
+    // mpv is a global instance, only touch it while our MPVView is the one using it
+    return MPVLib.librariesAreLoaded()
+      && MPVLib.isCreated()
+      && actualVideoPlayerView.initialized
+      && actualVideoPlayerView.isAttachedToWindow
+  }
+
+  private fun startPlaybackPosUpdates() {
+    playbackPosUpdateJob?.cancel()
+    playbackPosUpdateJob = scope.launch {
+      while (isActive) {
+        // Once per UI frame so that the seekbar handle moves smoothly
+        awaitFrame()
+
+        // Don't poll until mpv has loaded the file, all properties are unavailable until then
+        if (!shown || !mpvFileLoaded || !isMpvOwnedByThisView()) {
+          continue
+        }
+
+        // Polled instead of observed because mpv doesn't reliably send change events for "seeking" (no event is
+        // received when a seek gets stuck reading from the network). Done even when the controls are hidden
+        // because the buffering indicator is visible regardless.
+        val nowMs = SystemClock.elapsedRealtime()
+        if (nowMs - lastStallCheckTimeMs >= STALL_CHECK_INTERVAL_MS) {
+          lastStallCheckTimeMs = nowMs
+          pollStallState()
+          updatePlayPauseButton()
+        }
+
+        if (mpvControlsRoot.visibility == VISIBLE) {
+          updatePlaybackPos()
+        }
+      }
+    }
+  }
+
+  private fun stopPlaybackPosUpdates() {
+    playbackPosUpdateJob?.cancel()
+    playbackPosUpdateJob = null
+  }
+
+  private fun resetPlaybackProgress(isStreaming: Boolean) {
+    playbackProgressTracker.reset(isStreaming = isStreaming)
+    lastDisplayedDurationSeconds = -1
+  }
+
+  private fun updatePlaybackPos() {
+    if (!isMpvOwnedByThisView()) {
+      return
+    }
+
+    val progress = playbackProgressTracker.update(actualVideoPlayerView, SystemClock.elapsedRealtime())
+
+    if (progress.durationMs > 0) {
+      updatePlaybackDuration(progress.durationMs)
+    }
 
     if (!userIsOperatingSeekbar) {
-      mpvVideoProgress.setPosition(position)
-      mpvVideoProgress.setBufferedPosition(position + demuxerCacheDuration.toLong() + 1)
+      mpvVideoPosition.text = MpvUtils.prettyTime((progress.positionMs / 1000L).toInt())
+      mpvVideoProgress.setPosition(progress.positionMs)
+      mpvVideoProgress.setBufferedPosition(progress.bufferedPositionMs)
     }
 
     updateDecoderButton()
   }
 
-  private fun updatePlaybackDuration(duration: Double) {
-    mpvVideoDuration.text = MpvUtils.prettyTime(duration.toInt())
+  private fun updatePlaybackDuration(durationMs: Long) {
+    val durationSeconds = ceil(durationMs.toDouble() / 1000.0).toInt()
+    if (durationSeconds != lastDisplayedDurationSeconds) {
+      lastDisplayedDurationSeconds = durationSeconds
+      mpvVideoDuration.text = MpvUtils.prettyTime(durationSeconds)
+    }
 
     if (!userIsOperatingSeekbar) {
-      mpvVideoProgress.setDuration(duration.toLong())
+      mpvVideoProgress.setDuration(durationMs)
     }
   }
 
+  /**
+   * Whether "HW" is displayed. While a switch is in progress the requested value is displayed because
+   * hwdec-current only changes once mpv has re-initialized the decoder.
+   * */
+  private fun isHardwareDecodingDisplayed(): Boolean {
+    val actualHardwareDecoding = actualVideoPlayerView.hwdecActive
+    val requested = requestedHardwareDecoding
+      ?: return actualHardwareDecoding
+
+    val switchCompleted = actualHardwareDecoding == requested
+    val switchTimedOut = SystemClock.elapsedRealtime() - requestedHardwareDecodingTimeMs > HWDEC_SWITCH_MAX_WAIT_MS
+
+    if (!switchCompleted && !switchTimedOut) {
+      return requested
+    }
+
+    requestedHardwareDecoding = null
+
+    if (!switchCompleted && requested) {
+      // mpv silently falls back to software decoding when the codec is not supported by mediacodec
+      snackbarManager.toast(messageId = R.string.mpv_hardware_decoding_not_supported, toastId = HWDEC_TOAST_ID)
+    }
+
+    return actualHardwareDecoding
+  }
+
   private fun updateDecoderButton() {
-    if (mpvHwSw.visibility != VISIBLE) {
+    if (mpvHwSw.visibility != VISIBLE || !mpvFileLoaded || !isMpvOwnedByThisView()) {
       return
     }
 
-    mpvHwSw.text = if (actualVideoPlayerView.hwdecActive) {
+    val text = if (isHardwareDecodingDisplayed()) {
       getString(R.string.mpv_hw_decoding)
     } else {
       getString(R.string.mpv_sw_decoding)
+    }
+
+    // Called once per frame, don't trigger a re-layout when nothing has changed
+    if (mpvHwSw.text != text) {
+      mpvHwSw.text = text
     }
   }
 
@@ -926,12 +1239,14 @@ class MpvVideoMediaView(
 
     override fun clone(): MediaViewState {
       return VideoMediaViewState(prevPosition, prevPaused)
+        .also { newState -> newState.soundPostState.updateFrom(soundPostState) }
     }
 
     override fun updateFrom(other: MediaViewState?) {
       if (other == null) {
         prevPosition = null
         prevPaused = null
+        soundPostState.updateFrom(null)
         return
       }
 
@@ -941,11 +1256,18 @@ class MpvVideoMediaView(
 
       this.prevPosition = other.prevPosition
       this.prevPaused = other.prevPaused
+      this.soundPostState.updateFrom(other.soundPostState)
     }
   }
 
   companion object {
     private const val TAG = "MpvVideoMediaView"
+    private const val LOAD_FAILURE_CHECK_DELAY_MS = 250L
+    private const val VIDEO_LOAD_ERROR_TOAST_ID = "mpv_video_load_error_toast"
+    private const val STALL_INDICATOR_DELAY_MS = 500L
+    private const val STALL_CHECK_INTERVAL_MS = 100L
+    private const val HWDEC_SWITCH_MAX_WAIT_MS = 2000L
+    private const val HWDEC_TOAST_ID = "mpv_hwdec_toast"
 
     private const val ACTION_VIDEO_FAST_DECODE = 0
     private const val ACTION_USE_GPU_NEXT_VO = 1
