@@ -9,14 +9,15 @@ import android.view.TextureView
 import android.view.WindowManager
 import com.github.k1rakishou.chan.core.mpv.MPVLib.mpvFormat.MPV_FORMAT_DOUBLE
 import com.github.k1rakishou.chan.core.mpv.MPVLib.mpvFormat.MPV_FORMAT_FLAG
-import com.github.k1rakishou.chan.core.mpv.MPVLib.mpvFormat.MPV_FORMAT_INT64
 import com.github.k1rakishou.chan.core.mpv.MPVLib.mpvFormat.MPV_FORMAT_NONE
 import com.github.k1rakishou.chan.core.mpv.MPVLib.mpvFormat.MPV_FORMAT_STRING
+import com.github.k1rakishou.chan.core.site.SiteRequestModifier
 import com.github.k1rakishou.common.AppConstants
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.model.util.ChanPostUtils
 import java.io.File
 import kotlin.reflect.KProperty
+import kotlin.time.measureTime
 
 /**
  * Taken from https://github.com/mpv-android/mpv-android
@@ -31,6 +32,7 @@ class MPVView(
     attrs: AttributeSet?
 ) : TextureView(context, attrs), TextureView.SurfaceTextureListener {
     private var filePath: String? = null
+    private var headers: Map<String, String> = emptyMap()
     private var surfaceAttached = false
     private var _initialized = false
 
@@ -61,11 +63,7 @@ class MPVView(
         setupMpvConf(applicationContext, mpvUseConfigFile)
 
         // hwdec
-        val hwdec = if (hardwareDecoding) {
-            "mediacodec,mediacodec-copy"
-        } else {
-            "no"
-        }
+        val hwdec = hwdecValue(hardwareDecoding)
 
         Logger.d(TAG, "initOptions() hwdec: $hwdec")
 
@@ -93,6 +91,8 @@ class MPVView(
         MPVLib.mpvSetOptionString("ao", "audiotrack,opensles")
 
         val mpvCertFile = File(appConstants.mpvCertDir, AppConstants.MPV_CERTIFICATE_FILE_NAME)
+        // The default is 60 seconds which makes the player look stuck when there is no network
+        MPVLib.mpvSetOptionString("network-timeout", "$NETWORK_TIMEOUT_SECONDS")
         MPVLib.mpvSetOptionString("tls-verify", "yes")
         MPVLib.mpvSetOptionString("tls-ca-file", mpvCertFile.path)
 
@@ -152,10 +152,17 @@ class MPVView(
         Logger.d(TAG, "destroy()")
 
         this.filePath = null
+        this.headers = emptyMap()
 
         // Disable surface callbacks to avoid using unintialized mpv state
         surfaceTextureListener = null
-        MPVLib.mpvDestroy()
+        // onSurfaceTextureDestroyed() won't be called anymore (no listener) so the flag must be reset here.
+        // Otherwise the next playFile() thinks the surface is attached and calls loadfile before the new
+        // surface is available which makes mpv fail to initialize the video output.
+        surfaceAttached = false
+
+        val duration = measureTime { MPVLib.mpvDestroy() }
+        Logger.d(TAG, "destroy() MPVLib.mpvDestroy() took ${duration}")
 
         _initialized = false
     }
@@ -185,6 +192,7 @@ class MPVView(
 
     fun playFile(
         filePath: String,
+        headers: Map<String, String>,
         loopFile: Boolean,
         keepOpenAtEnd: Boolean
     ) {
@@ -198,18 +206,38 @@ class MPVView(
 
         if (!surfaceAttached) {
             this.filePath = filePath
+            this.headers = headers
         } else {
             this.filePath = null
-            MPVLib.mpvCommand(arrayOf("loadfile", filePath))
+            this.headers = emptyMap()
+            loadFile(filePath, headers)
         }
+    }
+
+    private fun loadFile(filePath: String, headers: Map<String, String>) {
+        // mpv is a global instance so the headers of the previous file must always be cleared.
+        // "change-list append" adds a single item without splitting on commas, which is important
+        // because header values (Accept-Language, Cookie) may contain them.
+        MPVLib.mpvCommand(arrayOf("change-list", "http-header-fields", "clr", ""))
+
+        for ((name, value) in headers) {
+            // ffmpeg may fail to seek in gzip-encoded streams, so don't ask for it
+            if (name.equals(SiteRequestModifier.AcceptEncodingHeaderKey, ignoreCase = true)) {
+                continue
+            }
+
+            MPVLib.mpvCommand(arrayOf("change-list", "http-header-fields", "append", "$name: $value"))
+        }
+
+        MPVLib.mpvCommand(arrayOf("loadfile", filePath))
     }
 
     private fun observeProperties() {
         // This observes all properties needed by MPVView or MPVActivity
         data class Property(val name: String, val format: Int)
+        // time-pos and demuxer-cache-duration are not observed on purpose. As INT64 they are truncated
+        // to seconds and as DOUBLE they would be sent on every frame. They are polled by the UI instead.
         val p = arrayOf(
-            Property("time-pos", MPV_FORMAT_INT64),
-            Property("demuxer-cache-duration", MPV_FORMAT_INT64),
             Property("duration/full", MPV_FORMAT_DOUBLE),
             Property("pause", MPV_FORMAT_FLAG),
             Property("eof-reached", MPV_FORMAT_FLAG),
@@ -246,9 +274,21 @@ class MPVView(
     val demuxerCacheDuration: Int?
         get() = MPVLib.mpvGetPropertyInt("demuxer-cache-duration")
 
+    /** In seconds with sub-millisecond precision. */
+    val demuxerCacheDurationFull: Double?
+        get() = MPVLib.mpvGetPropertyDouble("demuxer-cache-duration")
+
+    /** In seconds with sub-millisecond precision. */
+    val durationFull: Double?
+        get() = MPVLib.mpvGetPropertyDouble("duration/full")
+
+    /**
+     * In seconds with sub-millisecond precision. Setting it performs an exact seek (keyframe seeks jump
+     * back to the previous keyframe which is very noticeable on short videos).
+     * */
     var timePos: Double?
         get() = MPVLib.mpvGetPropertyDouble("time-pos/full")
-        set(progress) = MPVLib.mpvCommand(arrayOf("seek", "$progress", "absolute+keyframes"))
+        set(progress) = MPVLib.mpvCommand(arrayOf("seek", "$progress", "absolute+exact"))
 
     val hwdecActive: Boolean
         get() = (MPVLib.mpvGetPropertyString("hwdec-current") ?: "no") != "no"
@@ -329,7 +369,9 @@ class MPVView(
         }
     }
 
-    fun cycleHwdec() = MPVLib.mpvCommand(arrayOf("cycle-values", "hwdec", "mediacodec-copy", "no"))
+    fun setHardwareDecoding(enabled: Boolean) {
+        MPVLib.mpvSetPropertyString("hwdec", hwdecValue(enabled))
+    }
 
     fun cycleSpeed() {
         val speeds = arrayOf(0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)
@@ -345,9 +387,11 @@ class MPVView(
         // This forces mpv to render subs/osd/whatever into our surface even if it would ordinarily not
         MPVLib.mpvSetOptionString("force-window", "yes")
 
-        if (filePath != null) {
-            MPVLib.mpvCommand(arrayOf("loadfile", filePath as String))
+        val pendingFilePath = filePath
+        if (pendingFilePath != null) {
+            loadFile(pendingFilePath, headers)
             filePath = null
+            headers = emptyMap()
         } else {
             // We disable video output when the context disappears, enable it back
             MPVLib.mpvSetPropertyString("vo", "gpu")
@@ -376,5 +420,10 @@ class MPVView(
 
     companion object {
         private const val TAG = "MPVView"
+        private const val NETWORK_TIMEOUT_SECONDS = 20
+
+        private fun hwdecValue(enabled: Boolean): String {
+            return if (enabled) "mediacodec,mediacodec-copy" else "no"
+        }
     }
 }

@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.util.AttributeSet
 import androidx.annotation.CallSuper
-import androidx.media3.datasource.DataSource
 import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.core.cache.CacheHandler
@@ -13,6 +12,8 @@ import com.github.k1rakishou.chan.core.cache.downloader.ChunkedMediaDownloader
 import com.github.k1rakishou.chan.core.cache.downloader.DownloadRequestExtraInfo
 import com.github.k1rakishou.chan.core.cache.downloader.FileCacheListener
 import com.github.k1rakishou.chan.core.concurrency.KurobaCoroutineScope
+import com.github.k1rakishou.chan.core.helper.DialogFactory
+import com.github.k1rakishou.chan.core.helper.ProxyStorage
 import com.github.k1rakishou.chan.core.manager.GlobalWindowInsetsManager
 import com.github.k1rakishou.chan.core.manager.RevealedSpoilerImagesManager
 import com.github.k1rakishou.chan.core.manager.ThreadDownloadManager
@@ -22,6 +23,9 @@ import com.github.k1rakishou.chan.features.view.media.MediaViewerToolbar
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.ChanPostBackgroundColorStorage
 import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHelper
+import com.github.k1rakishou.chan.features.view.media.soundpost.SoundPostAudioDownloader
+import com.github.k1rakishou.chan.features.view.media.soundpost.SoundPostPlayer
+import com.github.k1rakishou.chan.features.view.media.soundpost.SoundPostSyncTarget
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerActionStrip
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStripCallbacks
 import com.github.k1rakishou.chan.ui.compose.snackbar.SnackbarScope
@@ -59,14 +63,10 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
   attributeSet: AttributeSet?,
   protected val mediaViewContract: MediaViewContract,
   protected val kurobaSettings: KurobaSettings,
-  private val cachedHttpDataSourceFactory: DataSource.Factory,
-  private val fileDataSourceFactory: DataSource.Factory,
-  private val contentDataSourceFactory: DataSource.Factory,
   val mediaViewState: S
 ) : TouchBlockingFrameLayoutNoBackground(context, attributeSet, 0),
   MediaViewerToolbar.MediaViewerToolbarCallbacks,
   MediaViewerBottomActionStripCallbacks,
-  AudioPlayerView.AudioPlayerCallbacks,
   IHasViewModelScope {
   abstract val viewableMedia: T
   abstract val pagerPosition: Int
@@ -93,6 +93,12 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
   lateinit var snackbarManagerFactory: SnackbarManagerFactory
   @Inject
   lateinit var revealedSpoilerImagesManager: RevealedSpoilerImagesManager
+  @Inject
+  lateinit var proxyStorage: ProxyStorage
+  @Inject
+  lateinit var dialogFactory: DialogFactory
+  @Inject
+  lateinit var soundPostAudioDownloader: SoundPostAudioDownloader
 
   protected val snackbarManager by lazy(LazyThreadSafetyMode.NONE) {
     snackbarManagerFactory.snackbarManager(SnackbarScope.MediaViewer())
@@ -111,9 +117,20 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
 
   protected val scope = KurobaCoroutineScope()
 
-  protected val audioPlayerView: AudioPlayerView? by lazy {
+  private val audioPlayerView: AudioPlayerView? by lazy {
     return@lazy findViewById<AudioPlayerView>(R.id.audio_player_view)
   }
+
+  private var soundPostPlayer: SoundPostPlayer? = null
+
+  protected val hasSoundPost: Boolean
+    get() = viewableMedia.viewableMediaMeta.soundPostActualSoundMedia != null
+
+  /**
+   * When true the sound post audio is controlled by the media's own player controls (video views) and
+   * only the sound loading status is displayed.
+   * */
+  protected open val soundPostControlledByMediaControls: Boolean = false
 
   abstract val mediaViewerActionStrip: MediaViewerActionStrip?
 
@@ -168,19 +185,30 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
     _bound = true
     bind()
 
-    if (audioPlayerView != null && mediaViewState.audioPlayerViewState != null) {
-      audioPlayerView?.bind(
-        audioPlayerCallbacks = this,
-        viewableMedia = viewableMedia,
+    val soundMedia = viewableMedia.viewableMediaMeta.soundPostActualSoundMedia
+    val audioPlayerView = audioPlayerView
+
+    if (soundMedia != null && audioPlayerView != null && soundPostPlayer == null) {
+      val player = SoundPostPlayer(
+        context = context,
         kurobaSettings = kurobaSettings,
         cacheHandler = cacheHandler.get(),
-        audioPlayerViewState = mediaViewState.audioPlayerViewState,
-        mediaViewContract = mediaViewContract,
-        threadDownloadManager = threadDownloadManager,
+        proxyStorage = proxyStorage,
+        dialogFactory = dialogFactory,
+        soundPostAudioDownloader = soundPostAudioDownloader,
         snackbarManager = snackbarManager,
-        cachedHttpDataSourceFactory = cachedHttpDataSourceFactory,
-        fileDataSourceFactory = fileDataSourceFactory,
-        contentDataSourceFactory = contentDataSourceFactory
+        mediaViewContract = mediaViewContract,
+        ownerMedia = viewableMedia,
+        soundMedia = soundMedia,
+        state = mediaViewState.soundPostState,
+        onPlaybackCompleted = ::onSoundPostPlaybackCompleted
+      )
+
+      soundPostPlayer = player
+      audioPlayerView.bind(
+        soundPostPlayer = player,
+        systemUiHidden = mediaViewContract.isImmersiveModeEnabled(),
+        statusOnly = soundPostControlledByMediaControls
       )
     }
 
@@ -192,14 +220,11 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
     isLifecycleChange: Boolean
   ) {
     _shown = true
+    keepScreenOn = viewableMedia is ViewableMedia.Video
     this._mediaViewToolbar = mediaViewerToolbar
     this._mediaViewToolbar!!.attach(mediaViewContract.viewerChanDescriptor, viewableMedia, this)
 
     this.mediaViewerActionStrip?.attach(mediaViewContract.viewerChanDescriptor, viewableMedia, this)
-
-    if (audioPlayerView != null && mediaViewState.audioPlayerViewState != null) {
-      audioPlayerView?.show(isLifecycleChange)
-    }
 
     show(isLifecycleChange)
     scope.launch { revealedSpoilerImagesManager.onImageClicked(viewableMedia) }
@@ -209,18 +234,16 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
 
   fun onHide(isLifecycleChange: Boolean, isPausing: Boolean, isBecomingInactive: Boolean) {
     _shown = false
+    keepScreenOn = false
     this._mediaViewToolbar?.detach()
     this._mediaViewToolbar = null
 
     this.mediaViewerActionStrip?.detach()
 
-    if (audioPlayerView != null && mediaViewState.audioPlayerViewState != null) {
-      audioPlayerView?.hide(
-        isLifecycleChange = isLifecycleChange,
-        isPausing = isPausing,
-        isBecomingInactive = isBecomingInactive
-      )
-    }
+    soundPostPlayer?.onHide(
+      isPausing = isPausing,
+      isBecomingInactive = isBecomingInactive
+    )
 
     hide(
       isLifecycleChange = isLifecycleChange,
@@ -235,12 +258,14 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
     _shown = false
     _bound = false
     _preloadingCalled = false
+    keepScreenOn = false
     _mediaViewToolbar?.onDestroy()
     mediaViewerActionStrip?.onDestroy()
 
-    if (audioPlayerView != null && mediaViewState.audioPlayerViewState != null) {
-      audioPlayerView?.unbind()
-    }
+    // Release before the subclasses release their players so that the sync target is not touched anymore
+    audioPlayerView?.unbind()
+    soundPostPlayer?.release()
+    soundPostPlayer = null
 
     scope.cancelChildren()
     unbind()
@@ -254,6 +279,8 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
   abstract fun hide(isLifecycleChange: Boolean, isPausing: Boolean, isBecomingInactive: Boolean)
   abstract fun unbind()
   abstract fun onInsetsChanged()
+
+  protected open fun onSoundPostPlaybackCompleted() = Unit
 
   protected open fun updateTransparency(backgroundColor: Int?) {
 
@@ -278,9 +305,28 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
       mediaViewerActionStrip?.show()
     }
 
-    if (audioPlayerView != null && mediaViewState.audioPlayerViewState != null) {
-      audioPlayerView?.onSystemUiVisibilityChanged(systemUIHidden)
+    audioPlayerView?.onSystemUiVisibilityChanged(systemUIHidden)
+  }
+
+  protected fun startSoundPostPlayback(
+    target: SoundPostSyncTarget?,
+    isForced: Boolean,
+    isLifecycleChange: Boolean
+  ) {
+    if (!shown) {
+      // The page was swiped away while the media was loading
+      return
     }
+
+    soundPostPlayer?.attach(
+      target = target,
+      isForced = isForced,
+      isLifecycleChange = isLifecycleChange
+    )
+  }
+
+  protected fun stopSoundPostPlayback() {
+    soundPostPlayer?.detach()
   }
 
   @CallSuper
@@ -289,14 +335,6 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
   }
 
   override suspend fun reloadMedia() {
-
-  }
-
-  override fun onAudioPlayerPlaybackChanged(isNowPaused: Boolean) {
-
-  }
-
-  override fun onRewindPlayback() {
 
   }
 

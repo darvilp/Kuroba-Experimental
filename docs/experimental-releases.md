@@ -21,7 +21,7 @@ Pushes to `release/experimental` run the Experimental APKs workflow. It validate
 
 The workflow is restricted to `darvilp/Kuroba-Experimental`. It does not call the inherited upstream publisher. Once signing is configured in a future change, it can verify every APK's package, version, debuggable flag, signing certificate, source commit, and copied checksum before producing release assets.
 
-The initial private key is retained locally. This release-preparation pass stops before exporting it to GitHub Actions, creating a tag, uploading an asset, or publishing a release. GitHub-hosted signing and publication require a separate follow-up.
+Public prereleases are signed and verified locally, then uploaded with the authenticated GitHub CLI. The private signing key stays on the local machine; GitHub secrets are not required for this route. GitHub-hosted signing remains optional.
 
 The required repository secrets are:
 
@@ -61,12 +61,12 @@ python3 scripts/prepare_experimental_release.py \
 
 Copy the verified APKs to the private distribution location and retain `SHA256SUMS.txt` and `release-manifest.json` with them. Confirm the copied files against the checksums before sharing them with testers.
 
-## Future GitHub publication
+## Publish a locally signed release
 
-The repository includes a publisher for the separate GitHub signing and publication follow-up. After the signing secrets are configured and publication is explicitly approved, run it against an unchanged verified bundle with an authenticated GitHub CLI:
+After code checks pass and publication is approved, run the publisher against an unchanged, locally verified bundle with an authenticated GitHub CLI:
 
 ```bash
 python3 scripts/publish_experimental_release.py --assets release-assets
 ```
 
-The publisher validates local checksums, creates a draft at the exact commit, uploads only the verified assets, compares GitHub's asset digests, and publishes it as a prerelease. A failed draft upload can be retried. A published release is accepted only if its commit and assets already match; it is never overwritten. Do not run this step during local APK preparation or CI verification.
+The publisher validates local checksums, creates a draft at the exact commit, uploads only the verified assets, compares GitHub's asset digests, and publishes it as a prerelease. A failed draft upload can be retried. A published release is accepted only if its commit and assets already match; it is never overwritten. Keep APK preparation and CI verification separate from publication.
