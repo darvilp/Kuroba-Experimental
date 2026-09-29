@@ -23,7 +23,6 @@ import com.github.k1rakishou.chan.R
 import com.github.k1rakishou.chan.core.cache.CacheFileType
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.MediaViewerControllerViewModel
-import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import com.github.k1rakishou.chan.features.view.media.MediaViewerVideoEndBehaviorHandler
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.helper.CloseMediaActionHelper
@@ -48,6 +47,7 @@ import com.github.k1rakishou.common.isExceptionImportant
 import com.github.k1rakishou.common.updateHeight
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
+import com.github.k1rakishou.v2.parameters.VideoEndBehavior
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
@@ -102,24 +102,6 @@ class ExoPlayerVideoMediaView(
       },
       onPlaybackEnded = ::reportPlaybackCompletion
     )
-  }
-
-  override fun onSoundPostPlaybackCompleted() {
-    reportPlaybackCompletion(kurobaSettings.application.videoEndBehavior.readBlocking())
-  }
-
-  private fun reportPlaybackCompletion(videoEndBehavior: VideoEndBehavior) {
-    if (!shown) {
-      return
-    }
-
-    mediaViewState.replayFromStartOnNextShow =
-      MediaViewerVideoEndBehaviorHandler.shouldReplayFromStartWhenRevisited(
-        videoEndBehavior = videoEndBehavior,
-        completedPagerPosition = pagerPosition,
-        totalMediaCount = totalPageItemsCount
-      )
-    mediaViewContract.onVideoPlaybackCompleted(pagerPosition, videoEndBehavior)
   }
 
   private val closeMediaActionHelper: CloseMediaActionHelper
@@ -449,6 +431,24 @@ class ExoPlayerVideoMediaView(
       videoLoadForced = true
       preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
     }
+  }
+
+  override fun onSoundPostPlaybackCompleted() {
+    reportPlaybackCompletion(kurobaSettings.application.videoEndBehavior.readBlocking())
+  }
+
+  private fun reportPlaybackCompletion(videoEndBehavior: VideoEndBehavior) {
+    if (!shown) {
+      return
+    }
+
+    mediaViewState.replayFromStartOnNextShow =
+      MediaViewerVideoEndBehaviorHandler.shouldReplayFromStartWhenRevisited(
+        videoEndBehavior = videoEndBehavior,
+        completedPagerPosition = pagerPosition,
+        totalMediaCount = totalPageItemsCount
+      )
+    mediaViewContract.onVideoPlaybackCompleted(pagerPosition, videoEndBehavior)
   }
 
   private fun playerControlsHeight(): Int {

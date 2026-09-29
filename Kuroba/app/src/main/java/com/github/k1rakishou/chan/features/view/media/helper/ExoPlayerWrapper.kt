@@ -19,6 +19,8 @@ import com.github.k1rakishou.chan.core.manager.ThreadDownloadManager
 import com.github.k1rakishou.chan.features.view.media.MediaLocation
 import com.github.k1rakishou.chan.features.view.media.ViewableMedia
 import com.github.k1rakishou.chan.features.view.media.element.MediaViewContract
+import com.github.k1rakishou.common.resumeErrorSafe
+import com.github.k1rakishou.common.resumeValueSafe
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
@@ -35,8 +37,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.time.measureTime
 
 
@@ -322,19 +322,15 @@ class ExoPlayerWrapper(
           Logger.e(TAG, "preload() error", error)
           clearPreload()
 
-          if (cancellableContinuation.isActive) {
-            cancellableContinuation.resumeWithException(error)
-          }
+          cancellableContinuation.resumeErrorSafe(error)
         }
 
         override fun onPlaybackStateChanged(state: Int) {
           if (state == Player.STATE_ENDED || state == Player.STATE_READY) {
             clearPreload()
 
-            if (cancellableContinuation.isActive) {
-              val hasContent = state == Player.STATE_READY
-              cancellableContinuation.resume(hasContent)
-            }
+            val hasContent = state == Player.STATE_READY
+            cancellableContinuation.resumeValueSafe(hasContent)
           }
         }
 

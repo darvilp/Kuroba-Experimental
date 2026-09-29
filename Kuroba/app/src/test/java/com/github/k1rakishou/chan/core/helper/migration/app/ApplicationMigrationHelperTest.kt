@@ -92,7 +92,9 @@ class ApplicationMigrationHelperTest {
       object : ApplicationMigration {
         override val version = migration.version
         override val changes: String? = null
-        override fun perform(context: Context) { performed.add(version) }
+        override fun perform(context: Context) {
+          performed.add(version)
+        }
       }
     })
     helper.processMigrations(context)

@@ -47,13 +47,28 @@ class SoundPostPlayerTest {
     Mockito.`when`(target.durationMs()).thenReturn(5000L)
     Mockito.`when`(target.positionMs()).thenReturn(1000L)
     Mockito.`when`(target.isPlaying()).thenAnswer { playing }
-    Mockito.doAnswer { playing = false; null }.`when`(target).pause()
+    Mockito.doAnswer {
+      playing = false
+      null
+    }.`when`(target).pause()
+
     val player = createPlayer { completions++ }
-    for ((name, value) in mapOf("audioPlayer" to audio, "target" to target,
-      "attached" to true, "autoLoop" to autoLoop)) {
-      SoundPostPlayer::class.java.getDeclaredField(name).apply { isAccessible = true }.set(player, value)
+    val fields = mapOf(
+      "audioPlayer" to audio,
+      "target" to target,
+      "attached" to true,
+      "autoLoop" to autoLoop
+    )
+    for ((name, value) in fields) {
+      SoundPostPlayer::class.java.getDeclaredField(name).apply {
+        isAccessible = true
+        set(player, value)
+      }
     }
-    val tick = SoundPostPlayer::class.java.getDeclaredMethod("tick").apply { isAccessible = true }
+
+    val tick = SoundPostPlayer::class.java.getDeclaredMethod("tick").apply {
+      isAccessible = true
+    }
     tick.invoke(player)
     tick.invoke(player)
     assertEquals(expectedCompletions, completions)
@@ -77,7 +92,11 @@ class SoundPostPlayerTest {
       val player = createPlayer {}
       val target = Mockito.mock(SoundPostSyncTarget::class.java)
       val loading = Job()
-      SoundPostPlayer::class.java.getDeclaredField("loadJob").apply { isAccessible = true }.set(player, loading)
+      SoundPostPlayer::class.java.getDeclaredField("loadJob").apply {
+        isAccessible = true
+        set(player, loading)
+      }
+
       player.attach(target, isForced = false, isLifecycleChange = false)
       if (behavior == VideoEndBehavior.AutoAdvance) {
         Mockito.verify(target).setLooping(true)
