@@ -346,6 +346,12 @@ abstract class MediaView<T : ViewableMedia, S : MediaViewState> constructor(
     mediaViewContract.onOptionsButtonClick(viewableMedia)
   }
 
+  override fun hasNextPost(): Boolean = mediaViewContract.hasNextPost(pagerPosition)
+
+  override fun onNextPostClick() {
+    mediaViewContract.onNextPostClick(pagerPosition)
+  }
+
   override fun onShowRepliesButtonClick(postDescriptor: PostDescriptor) {
     mediaViewContract.showReplyChain(postDescriptor)
   }

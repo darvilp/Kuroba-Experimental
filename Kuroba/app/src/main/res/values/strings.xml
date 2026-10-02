@@ -148,6 +148,7 @@ Re-enable this permission in the app settings if you permanently disabled it."</
     <string name="action_view_removed_threads">View manually hidden/removed threads</string>
     <string name="action_open_catalog_page">Open catalog page</string>
     <string name="action_go_to_post">Go to post</string>
+    <string name="media_viewer_next_post">Next post</string>
     <string name="action_thread_options">More options</string>
     <string name="action_allow_image_transparency">Allow image transparency</string>
     <string name="action_draw_behind_notch">Draw media content behind phone notch/system UI</string>

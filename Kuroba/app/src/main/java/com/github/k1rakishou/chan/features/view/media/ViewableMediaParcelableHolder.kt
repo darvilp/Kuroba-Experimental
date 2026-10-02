@@ -329,6 +329,20 @@ sealed class ViewableMedia(
 
 }
 
+internal fun List<ViewableMedia>.nextPostPositionOrNull(pagerPosition: Int): Int? {
+  val currentPost = getOrNull(pagerPosition)?.postDescriptor
+    ?: return null
+
+  for (index in pagerPosition + 1 until size) {
+    val nextPost = this[index].postDescriptor
+    if (nextPost != null && nextPost != currentPost) {
+      return index
+    }
+  }
+
+  return null
+}
+
 data class ViewableMediaMeta(
   val mediaViewerSoundPostsEnabled: Boolean,
   val ownerPostDescriptor: PostDescriptor?,

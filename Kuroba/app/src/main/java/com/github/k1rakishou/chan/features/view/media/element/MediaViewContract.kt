@@ -23,6 +23,8 @@ interface MediaViewContract {
   fun onOptionsButtonClick(viewableMedia: ViewableMedia)
   fun onMediaLongClick(view: View, viewableMedia: ViewableMedia)
   fun onGoToPostMediaClick(viewableMedia: ViewableMedia, postDescriptor: PostDescriptor)
+  fun hasNextPost(pagerPosition: Int): Boolean
+  fun onNextPostClick(pagerPosition: Int)
   fun showReplyChain(postDescriptor: PostDescriptor)
   suspend fun defaultArtworkDrawable(): Drawable?
   fun openAlbum(viewableMedia: ViewableMedia)
