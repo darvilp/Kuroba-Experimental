@@ -4,7 +4,7 @@
     android:id="@+id/media_viewer_actions_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="center_horizontal"
+    android:gravity="center"
     android:orientation="horizontal"
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
@@ -13,8 +13,8 @@
         android:id="@+id/toolbar_go_to_post_button_container"
         android:layout_width="@dimen/bottom_action_strip_button_size"
         android:layout_height="@dimen/bottom_action_strip_button_size"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/bottom_strip_item_circle_bg">
 
         <androidx.appcompat.widget.AppCompatImageButton
@@ -34,8 +34,8 @@
         android:id="@+id/toolbar_post_replies_button_container"
         android:layout_width="@dimen/bottom_action_strip_button_size"
         android:layout_height="@dimen/bottom_action_strip_button_size"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/bottom_strip_item_circle_bg">
 
         <androidx.appcompat.widget.AppCompatImageButton
@@ -70,8 +70,8 @@
         android:id="@+id/toolbar_reload_button_container"
         android:layout_width="@dimen/bottom_action_strip_button_size"
         android:layout_height="@dimen/bottom_action_strip_button_size"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/bottom_strip_item_circle_bg">
 
         <androidx.appcompat.widget.AppCompatImageButton
@@ -91,8 +91,8 @@
         android:id="@+id/toolbar_download_button_container"
         android:layout_width="@dimen/bottom_action_strip_button_size"
         android:layout_height="@dimen/bottom_action_strip_button_size"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/bottom_strip_item_circle_bg">
 
         <androidx.appcompat.widget.AppCompatImageButton
@@ -112,8 +112,8 @@
         android:id="@+id/toolbar_options_button_container"
         android:layout_width="@dimen/bottom_action_strip_button_size"
         android:layout_height="@dimen/bottom_action_strip_button_size"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
         android:background="@drawable/bottom_strip_item_circle_bg">
 
         <androidx.appcompat.widget.AppCompatImageButton
@@ -125,6 +125,28 @@
             android:focusable="true"
             android:padding="6dp"
             android:src="@drawable/ic_more_vert_white_24dp"
+            android:tint="#fff" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/toolbar_next_post_button_container"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="6dp"
+        android:layout_marginEnd="6dp"
+        android:background="@drawable/bottom_strip_item_circle_bg">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/toolbar_next_post_button"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/media_viewer_next_post"
+            android:focusable="true"
+            android:padding="6dp"
+            android:src="@drawable/ic_baseline_navigate_next_24"
             android:tint="#fff" />
 
     </FrameLayout>

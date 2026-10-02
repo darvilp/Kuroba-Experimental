@@ -50,4 +50,16 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <com.github.k1rakishou.chan.features.view.media.helper.MediaViewerBottomContainer
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom">
+
+        <com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
+            android:id="@+id/bottom_action_strip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+    </com.github.k1rakishou.chan.features.view.media.helper.MediaViewerBottomContainer>
+
 </FrameLayout>

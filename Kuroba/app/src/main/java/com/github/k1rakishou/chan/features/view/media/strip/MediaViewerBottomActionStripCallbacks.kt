@@ -7,6 +7,8 @@ interface MediaViewerBottomActionStripCallbacks {
   suspend fun reloadMedia()
   suspend fun downloadMedia(isLongClick: Boolean): Boolean
   fun onOptionsButtonClick()
+  fun hasNextPost(): Boolean
+  fun onNextPostClick()
   fun onShowRepliesButtonClick(postDescriptor: PostDescriptor)
   fun onGoToPostMediaClick(viewableMedia: ViewableMedia, postDescriptor: PostDescriptor)
 }

@@ -15,7 +15,6 @@ import com.github.k1rakishou.chan.core.manager.WindowInsetsListener
 import com.github.k1rakishou.chan.utils.AnimationUtils.fadeIn
 import com.github.k1rakishou.chan.utils.AnimationUtils.fadeOut
 import com.github.k1rakishou.chan.utils.AppModuleAndroidUtils
-import com.github.k1rakishou.chan.utils.setEnabledFast
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.common.isNotNullNorEmpty
 import com.github.k1rakishou.common.updatePaddings
@@ -36,7 +35,6 @@ class MediaViewerToolbar @JvmOverloads constructor(
   lateinit var globalWindowInsetsManager: GlobalWindowInsetsManager
 
   private val toolbarCloseButton: AppCompatImageButton
-  private val toolbarNextPostButton: AppCompatImageButton
   private val toolbarTitle: TextView
   private val toolbarSubTitle: TextView
 
@@ -53,12 +51,9 @@ class MediaViewerToolbar @JvmOverloads constructor(
     setBackgroundColor(context.resources.getColor(R.color.transparent_black_bg))
 
     toolbarCloseButton = findViewById(R.id.toolbar_close_button)
-    toolbarNextPostButton = findViewById(R.id.toolbar_next_post_button)
     toolbarTitle = findViewById(R.id.toolbar_title)
     toolbarSubTitle = findViewById(R.id.toolbar_subtitle)
     toolbarCloseButton.setOnClickListener { mediaViewerToolbarCallbacks?.onCloseButtonClick() }
-    toolbarNextPostButton.setEnabledFast(false)
-    toolbarNextPostButton.setOnClickListener { mediaViewerToolbarCallbacks?.onNextPostClick() }
 
     doOnPreDraw { onInsetsChanged() }
     setVisibilityFast(GONE)
@@ -76,13 +71,11 @@ class MediaViewerToolbar @JvmOverloads constructor(
     this.chanDescriptor = chanDescriptor
     this.currentViewableMedia = viewableMedia
     this.mediaViewerToolbarCallbacks = callbacks
-    toolbarNextPostButton.setEnabledFast(callbacks.hasNextPost())
   }
 
   fun detach() {
     this.mediaViewerToolbarCallbacks = null
     this.chanDescriptor = null
-    toolbarNextPostButton.setEnabledFast(false)
   }
 
   fun onCreate() {
@@ -180,8 +173,6 @@ class MediaViewerToolbar @JvmOverloads constructor(
 
   interface MediaViewerToolbarCallbacks {
     fun onCloseButtonClick()
-    fun hasNextPost(): Boolean
-    fun onNextPostClick()
   }
 
   companion object {

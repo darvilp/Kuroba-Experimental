@@ -45,6 +45,8 @@ class MediaViewerLeftActionStrip @JvmOverloads constructor(
         }
       }
     }
+
+    container.addView(toolbarNextPostButtonContainer)
   }
 
 }
