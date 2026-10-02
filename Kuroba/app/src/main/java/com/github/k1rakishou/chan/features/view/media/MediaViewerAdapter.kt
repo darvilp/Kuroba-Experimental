@@ -423,6 +423,10 @@ class MediaViewerAdapter(
     notifyDataSetChanged()
   }
 
+  fun nextPostPositionOrNull(pagerPosition: Int): Int? {
+    return viewableMediaList.nextPostPositionOrNull(pagerPosition)
+  }
+
   fun indexOfPostImageOrNull(postImage: ChanPostImage): Int? {
     val indexToScroll = viewableMediaList
       .indexOfFirst { viewableMedia -> viewableMedia.mediaLocation.value == postImage.imageUrl?.toString() }

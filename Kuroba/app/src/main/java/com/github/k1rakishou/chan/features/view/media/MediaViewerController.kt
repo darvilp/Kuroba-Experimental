@@ -620,6 +620,21 @@ class MediaViewerController(
     }
   }
 
+  override fun hasNextPost(pagerPosition: Int): Boolean {
+    return mediaViewerAdapter?.nextPostPositionOrNull(pagerPosition) != null
+  }
+
+  override fun onNextPostClick(pagerPosition: Int) {
+    if (pagerPosition != pager.currentItem) {
+      return
+    }
+
+    val nextPosition = mediaViewerAdapter?.nextPostPositionOrNull(pagerPosition)
+      ?: return
+
+    pager.setCurrentItem(nextPosition, true)
+  }
+
   override fun onGoToPostMediaClick(viewableMedia: ViewableMedia, postDescriptor: PostDescriptor) {
     val mediaViewerOptions = viewModel.mediaViewerOptions.value
     var closeMediaViewer = false
