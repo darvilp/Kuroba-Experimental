@@ -43,7 +43,7 @@ class AudioMediaView(
 
   override val hasContent: Boolean
     get() = false
-  override val mediaViewerActionStrip: MediaViewerBottomActionStrip? = null
+  override val mediaViewerActionStrip: MediaViewerBottomActionStrip
 
   init {
     AppModuleAndroidUtils.extractActivityComponent(context)
@@ -51,6 +51,7 @@ class AudioMediaView(
 
     inflate(context, R.layout.media_view_unsupported, this)
     setWillNotDraw(false)
+    mediaViewerActionStrip = findViewById(R.id.bottom_action_strip)
 
     mediaViewNotSupportedMessage = findViewById(R.id.media_not_supported_message)
     openInBrowserButton = findViewById(R.id.open_in_browser_button)

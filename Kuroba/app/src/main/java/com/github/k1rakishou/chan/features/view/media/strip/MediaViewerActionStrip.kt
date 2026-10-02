@@ -49,12 +49,14 @@ abstract class MediaViewerActionStrip(
   private lateinit var toolbarDownloadButton: AppCompatImageButton
   private lateinit var toolbarPostRepliesButton: AppCompatImageButton
   private lateinit var toolbarOptionsButton: AppCompatImageButton
+  private lateinit var toolbarNextPostButton: AppCompatImageButton
 
   protected lateinit var toolbarGoToPostButtonContainer: FrameLayout
   protected lateinit var toolbarReloadButtonContainer: FrameLayout
   protected lateinit var toolbarDownloadButtonContainer: FrameLayout
   protected lateinit var toolbarPostRepliesButtonContainer: FrameLayout
   protected lateinit var toolbarOptionsButtonContainer: FrameLayout
+  protected lateinit var toolbarNextPostButtonContainer: FrameLayout
   private lateinit var repliesCountTextView: TextView
 
   private val scope = KurobaCoroutineScope()
@@ -75,16 +77,20 @@ abstract class MediaViewerActionStrip(
     toolbarDownloadButton = findViewById(R.id.toolbar_download_button)
     toolbarPostRepliesButton = findViewById(R.id.toolbar_post_replies_button)
     toolbarOptionsButton = findViewById(R.id.toolbar_options_button)
+    toolbarNextPostButton = findViewById(R.id.toolbar_next_post_button)
 
     toolbarGoToPostButtonContainer = findViewById(R.id.toolbar_go_to_post_button_container)
     toolbarReloadButtonContainer = findViewById(R.id.toolbar_reload_button_container)
     toolbarDownloadButtonContainer = findViewById(R.id.toolbar_download_button_container)
     toolbarPostRepliesButtonContainer = findViewById(R.id.toolbar_post_replies_button_container)
     toolbarOptionsButtonContainer = findViewById(R.id.toolbar_options_button_container)
+    toolbarNextPostButtonContainer = findViewById(R.id.toolbar_next_post_button_container)
     repliesCountTextView = findViewById(R.id.replies_count_text)
 
     reorder()
 
+    toolbarNextPostButton.setEnabledFast(false)
+    toolbarNextPostButton.setOnClickListener { mediaViewerStripCallbacks?.onNextPostClick() }
     toolbarGoToPostButton.setEnabledFast(false)
     toolbarReloadButton.setEnabledFast(false)
     toolbarDownloadButton.setEnabledFast(false)
@@ -156,6 +162,7 @@ abstract class MediaViewerActionStrip(
     postRepliesProcessJob?.cancel()
     postRepliesProcessJob = null
 
+    toolbarNextPostButton.setEnabledFast(callbacks.hasNextPost())
     toolbarReloadButton.setEnabledFast(viewableMedia.canReloadMedia())
     toolbarDownloadButton.setEnabledFast(viewableMedia.canMediaBeDownloaded())
     toolbarGoToPostButton.setEnabledFast(viewableMedia.hasPostDescriptor())
@@ -178,6 +185,7 @@ abstract class MediaViewerActionStrip(
 
     this.mediaViewerStripCallbacks = null
     this.chanDescriptor = null
+    toolbarNextPostButton.setEnabledFast(false)
   }
 
   fun updateWithViewableMedia(pagerPosition: Int, totalPageItemsCount: Int, viewableMedia: ViewableMedia) {

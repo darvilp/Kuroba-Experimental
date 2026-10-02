@@ -131,4 +131,26 @@
 
     </FrameLayout>
 
+    <FrameLayout
+        android:id="@+id/toolbar_next_post_button_container"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="20dp"
+        android:background="@drawable/bottom_strip_item_circle_bg">
+
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/toolbar_next_post_button"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:contentDescription="@string/media_viewer_next_post"
+            android:focusable="true"
+            android:padding="6dp"
+            android:src="@drawable/ic_baseline_navigate_next_24"
+            android:tint="#fff" />
+
+    </FrameLayout>
+
 </LinearLayout>
