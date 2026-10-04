@@ -1,3 +1,12 @@
+# Media viewer playback lifecycle
+
+Branch: `fix/media-viewer-playback-lifecycle`
+
+Pauses and stops hidden video and sound-post players even when they are buffering. It preserves the requested playback state and cancels stale preload and listener work to prevent audio from the previous page continuing after navigation.
+
+Adjacent remote videos prefetch into the shared cache without preparing offscreen decoders. This branch retains the existing ExoPlayer API; the Media3 migration is separate.
+
+---
 
 # Kuroba Experimental
 
