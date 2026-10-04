@@ -1,3 +1,12 @@
+# Personal Media3 playback integration
+
+Branch: `personal/media3-integration`
+
+Combines the playback lifecycle fix, Loop/AutoAdvance/Stop completion controls, and the migration from standalone ExoPlayer to AndroidX Media3 1.10.1. Personal packaging allows device testing alongside the upstream app.
+
+This is a cumulative test branch. The independent feature and fix branches retain their narrower scopes for review.
+
+---
 
 # Kuroba Experimental
 
