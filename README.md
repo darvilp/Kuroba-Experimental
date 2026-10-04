@@ -22,6 +22,8 @@ Adds a Next post button alongside the media controls while keeping swiping avail
 
 The button has a 48 dp tap target and an accessibility label. It disables when no next post is available and does not wrap to the beginning.
 
+On phones, the shared action row stays immediately above the system navigation area across images, GIFs, and videos. Video and sound-post playback controls appear above it, keeping Next post at the same tap position when the media type changes. Tablet side controls retain their existing placement.
+
 **Release integration:** Included in this release branch.
 
 ### `fix/media-viewer-playback-lifecycle`
