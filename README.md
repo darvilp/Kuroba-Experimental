@@ -1,3 +1,12 @@
+# Configurable video end behavior
+
+Branch: `feature/654-video-end-behavior`
+
+Adds Loop, AutoAdvance, and Stop choices for video completion in the media viewer, with support for both ExoPlayer and MPV. AutoAdvance moves to the next media item when a video ends. Existing loop preferences migrate to the new setting.
+
+This branch keeps the completion feature separate from playback lifecycle fixes and the Media3 migration.
+
+---
 
 # Kuroba Experimental
 
