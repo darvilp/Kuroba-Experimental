@@ -1,3 +1,12 @@
+# Next post in the media viewer
+
+Branch: `feature/media-viewer-next-post`
+
+Adds a Next post button alongside the media controls while keeping swiping available. It appears with the bottom controls on phones and the side controls on tablets. It skips remaining attachments from the current post and opens the next post with media in the current filtered order.
+
+The button has a 48 dp tap target and an accessibility label. It disables when no next post is available and does not wrap to the beginning.
+
+---
 
 # Kuroba Experimental
 
