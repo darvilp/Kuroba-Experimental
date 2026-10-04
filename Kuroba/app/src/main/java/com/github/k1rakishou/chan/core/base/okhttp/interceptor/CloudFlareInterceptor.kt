@@ -4,7 +4,6 @@ import com.github.k1rakishou.chan.core.base.okhttp.interceptor.CloudFlareInterce
 import com.github.k1rakishou.chan.core.base.okhttp.interceptor.CloudFlareInterceptor.Companion.COOKIE_TCS
 import com.github.k1rakishou.chan.core.manager.FirewallBypassManager
 import com.github.k1rakishou.chan.core.site.SiteResolver
-import com.github.k1rakishou.chan.utils.containsPattern
 import com.github.k1rakishou.common.AppConstants
 import com.github.k1rakishou.common.COOKIE_HEADER_NAME
 import com.github.k1rakishou.common.CookieBuilder
@@ -17,7 +16,6 @@ import okhttp3.Interceptor
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.internal.closeQuietly
-import java.nio.charset.StandardCharsets
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -80,6 +78,9 @@ class CloudFlareInterceptor(
       return null
     }
 
+    // This response will either be replaced by a retry or discarded when we throw.
+    response.closeQuietly()
+
     Logger.verbose(TAG) {
       "[$okHttpType] Found CloudFlare needle in the page's body for endpoint '${request.url}'"
     }
@@ -129,8 +130,6 @@ class CloudFlareInterceptor(
               "[$okHttpType] firewallBypassManager.onFirewallDetected() " +
                 "endpoint '${request.url}'... success. (took: ${deltaTime}ms)"
             }
-
-            response.closeQuietly()
 
             return interceptInternal(
               chain = chain,
@@ -282,19 +281,10 @@ class CloudFlareInterceptor(
       }
     }
 
-    // Slow path, load first READ_BYTES_COUNT bytes of the body
-    val responseBody = response.body
-
-    return responseBody.use { body ->
-      return@use body.byteStream().use { inputStream ->
-        val bytes = ByteArray(READ_BYTES_COUNT)
-        val read = inputStream.read(bytes)
-        if (read <= 0) {
-          return@use false
-        }
-
-        return@use cloudflareNeedles.any { needle -> bytes.containsPattern(0, needle) }
-      }
+    // Inspect a bounded copy without consuming the body returned to the caller.
+    return response.peekBody(READ_BYTES_COUNT.toLong()).use { preview ->
+      val text = preview.string()
+      cloudflareNeedles.any { needle -> text.contains(needle) }
     }
   }
 
@@ -344,10 +334,10 @@ class CloudFlareInterceptor(
     private val cloudFlareHeaders = arrayOf("cloudflare-nginx", "cloudflare")
 
     private val cloudflareNeedles = arrayOf(
-      "<title>Just a moment".toByteArray(StandardCharsets.UTF_8),
-      "<title>Please wait".toByteArray(StandardCharsets.UTF_8),
-      "Checking your browser before accessing".toByteArray(StandardCharsets.UTF_8),
-      "Browser Integrity Check".toByteArray(StandardCharsets.UTF_8)
+      "<title>Just a moment",
+      "<title>Please wait",
+      "Checking your browser before accessing",
+      "Browser Integrity Check"
     )
   }
 }
