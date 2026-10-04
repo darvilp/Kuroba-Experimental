@@ -1,3 +1,12 @@
+# Samsung VP8 operating-rate spike
+
+Branch: `spike/media3-vp8-operating-rate`
+
+Builds on the Media3 migration and playback lifecycle fix to test an explicit codec operating rate for VP8 on Samsung devices. The policy uses a minimum of 30 fps multiplied by playback speed and retains the normal Media3 rate policy for other formats.
+
+Adds codec and frame diagnostics for evaluating the experiment. This branch does not include Personal packaging or the configurable video completion feature; the policy is not a confirmed general fix.
+
+---
 
 # Kuroba Experimental
 
