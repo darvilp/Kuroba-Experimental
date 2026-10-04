@@ -1,3 +1,12 @@
+# Media3 integration with the Samsung VP8 experiment
+
+Branch: `personal/media3-vp8-operating-rate`
+
+Combines Media3 playback, playback lifecycle fixes, and Loop/AutoAdvance/Stop controls with an experimental Samsung VP8 codec operating-rate policy. The policy supplies a minimum operating rate based on 30 fps and playback speed, with diagnostics for investigating playback performance.
+
+This branch also integrates upstream v1.3.47 and the Experimental release channel. Experimental APKs install alongside Personal and upstream builds with separate data and require manual updates. The VP8 policy remains experimental.
+
+---
 
 # Kuroba Experimental
 
