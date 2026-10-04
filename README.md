@@ -1,3 +1,12 @@
+# Personal build with video end controls
+
+Branch: `personal/654-video-end-behavior`
+
+Combines Loop, AutoAdvance, and Stop video completion choices with the MPV auto-advance completion fix. It includes Personal packaging so the APK can install alongside the upstream app with separate data.
+
+This is the earlier personal build for the completion feature. Cumulative playback work continues on the integration branches.
+
+---
 
 # Kuroba Experimental
 
