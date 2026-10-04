@@ -43,20 +43,16 @@
         android:layout_gravity="bottom"
         android:orientation="vertical">
 
-        <com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
-            android:id="@+id/bottom_action_strip"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <Space
-            android:layout_width="match_parent"
-            android:layout_height="8dp"/>
-
         <com.github.k1rakishou.chan.features.view.media.element.AudioPlayerView
             android:id="@+id/audio_player_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom" />
+
+        <com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
+            android:id="@+id/bottom_action_strip"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
     </com.github.k1rakishou.chan.features.view.media.helper.MediaViewerBottomContainer>
 

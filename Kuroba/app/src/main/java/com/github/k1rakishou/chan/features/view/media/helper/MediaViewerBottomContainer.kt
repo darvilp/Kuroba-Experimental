@@ -17,18 +17,11 @@ class MediaViewerBottomContainer @JvmOverloads constructor(
   @Inject
   lateinit var globalWindowInsetsManager: GlobalWindowInsetsManager
 
-  private var bottomInsetConsumer: ((Int) -> Unit)? = null
-
   init {
     AppModuleAndroidUtils.extractActivityComponent(context)
       .inject(this)
 
     orientation = VERTICAL
-  }
-
-  fun setBottomInsetConsumer(consumer: ((bottomInset: Int) -> Unit)?) {
-    bottomInsetConsumer = consumer
-    onInsetsChanged()
   }
 
   override fun onAttachedToWindow() {
@@ -51,16 +44,11 @@ class MediaViewerBottomContainer @JvmOverloads constructor(
   }
 
   override fun onInsetsChanged() {
-    val bottomInset = globalWindowInsetsManager.bottom()
-    val consumer = bottomInsetConsumer
-
     updatePaddings(
       left = globalWindowInsetsManager.left(),
       right = globalWindowInsetsManager.right(),
       top = 0,
-      bottom = if (consumer != null) 0 else bottomInset
+      bottom = globalWindowInsetsManager.bottom()
     )
-
-    consumer?.invoke(bottomInset)
   }
 }

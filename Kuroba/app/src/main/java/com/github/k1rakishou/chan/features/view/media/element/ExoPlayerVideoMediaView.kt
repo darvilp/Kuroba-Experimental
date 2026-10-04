@@ -42,9 +42,7 @@ import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.common.ModularResult
 import com.github.k1rakishou.common.awaitCatching
 import com.github.k1rakishou.common.errorMessageOrClassName
-import com.github.k1rakishou.common.findChild
 import com.github.k1rakishou.common.isExceptionImportant
-import com.github.k1rakishou.common.updateHeight
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
 import com.github.k1rakishou.v2.parameters.VideoEndBehavior
@@ -145,10 +143,7 @@ class ExoPlayerVideoMediaView(
     val placeholderView = findViewById<FrameLayout>(R.id.view_player_controls_placeholder)
     actualVideoPlayerView.setControllerPlaceholderView(placeholderView, this)
 
-    // Draw the controls (with their background) behind the navigation bar instead of above it
-    val controlsBottomInset = findViewById<View>(R.id.exo_controls_insets_view)
-    findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
-      .setBottomInsetConsumer { bottomInset -> controlsBottomInset?.updateHeight(bottomInset) }
+    val bottomContainer = findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
 
     muteUnmuteButton = findViewById(R.id.exo_mute)
     muteUnmuteButton.setEnabledFast(false)
@@ -171,7 +166,7 @@ class ExoPlayerVideoMediaView(
       invalidateFunc = { invalidate() },
       closeMediaViewer = { mediaViewContract.closeMediaViewer() },
       topPaddingFunc = { toolbarHeight() },
-      bottomPaddingFunc = { playerControlsHeight() },
+      bottomPaddingFunc = { bottomContainer.height },
       topGestureInfo = createGestureAction(isTopGesture = true),
       bottomGestureInfo = createGestureAction(isTopGesture = false)
     )
@@ -449,19 +444,6 @@ class ExoPlayerVideoMediaView(
         totalMediaCount = totalPageItemsCount
       )
     mediaViewContract.onVideoPlaybackCompleted(pagerPosition, videoEndBehavior)
-  }
-
-  private fun playerControlsHeight(): Int {
-    val bottomInset = globalWindowInsetsManager.bottom()
-
-    if (!actualVideoPlayerView.isControllerVisible) {
-      return bottomInset
-    }
-
-    return actualVideoPlayerView
-      .findChild { childView -> childView.id == R.id.exo_controls_view_root }
-      ?.height
-      ?: bottomInset
   }
 
   private fun updateAudioIcon(soundCurrentlyMuted: Boolean) {

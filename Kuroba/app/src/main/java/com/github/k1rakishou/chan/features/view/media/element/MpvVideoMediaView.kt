@@ -46,7 +46,6 @@ import com.github.k1rakishou.chan.utils.BackgroundUtils
 import com.github.k1rakishou.chan.utils.setEnabledFast
 import com.github.k1rakishou.chan.utils.setVisibilityFast
 import com.github.k1rakishou.common.errorMessageOrClassName
-import com.github.k1rakishou.common.updateHeight
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.fsaf.file.ExternalFile
 import com.github.k1rakishou.fsaf.file.RawFile
@@ -94,7 +93,6 @@ class MpvVideoMediaView(
   private val mpvPlayPause: ImageButton
   private val mpvSettings: ImageButton
   private val mpvControlsRoot: LinearLayout
-  private val mpvControlsBottomInset: FrameLayout
   private val mpvErrorMessage: TextView
   private val actionStrip: MediaViewerActionStrip
 
@@ -184,11 +182,8 @@ class MpvVideoMediaView(
     mpvHwSw = findViewById(R.id.mpv_hw_sw)
     mpvPlayPause = findViewById(R.id.mpv_play_pause)
     mpvControlsRoot = findViewById(R.id.mpv_controls_view_root)
-    mpvControlsBottomInset = findViewById(R.id.mpv_controls_insets_view)
 
-    // Draw the controls (with their background) behind the navigation bar instead of above it
-    findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
-      .setBottomInsetConsumer { bottomInset -> mpvControlsBottomInset.updateHeight(bottomInset) }
+    val bottomContainer = findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
     mpvSettings = findViewById(R.id.mpv_settings)
     mpvErrorMessage = findViewById(R.id.error_message)
 
@@ -296,7 +291,7 @@ class MpvVideoMediaView(
       invalidateFunc = { invalidate() },
       closeMediaViewer = { mediaViewContract.closeMediaViewer() },
       topPaddingFunc = { toolbarHeight() },
-      bottomPaddingFunc = { 0 },
+      bottomPaddingFunc = { bottomContainer.height },
       topGestureInfo = createGestureAction(isTopGesture = true),
       bottomGestureInfo = createGestureAction(isTopGesture = false)
     )
