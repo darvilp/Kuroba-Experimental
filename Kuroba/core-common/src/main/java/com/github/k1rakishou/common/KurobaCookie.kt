@@ -116,7 +116,8 @@ data class KurobaCookie(
       val currentTime = System.currentTimeMillis()
 
       var resultValue: String? = null
-      var resultExpiration: Expiration? = null
+      var maxAgeExpiration: Expiration.Time? = null
+      var expiresExpiration: Expiration.Time? = null
       var resultPath: String = "/"
 
       for (cookiePart in cookieParts) {
@@ -136,7 +137,7 @@ data class KurobaCookie(
           val maxAgeSeconds = value.toLongOrNull()
           if (maxAgeSeconds != null) {
             val expirationTimeMillis = currentTime + (maxAgeSeconds * 1000L)
-            resultExpiration = Expiration.Time(expirationTimeMillis)
+            maxAgeExpiration = Expiration.Time(expirationTimeMillis)
           }
 
           continue
@@ -145,7 +146,7 @@ data class KurobaCookie(
         if (key.equals("Expires", ignoreCase = true)) {
           try {
             val expirationTime = HttpDateFormatter.parseDateTime(value).millis
-            resultExpiration = Expiration.Time(expirationTimeMillis = expirationTime)
+            expiresExpiration = Expiration.Time(expirationTimeMillis = expirationTime)
           } catch (error: Throwable) {
             Logger.error(TAG, error) { "Failed to parse Expires parameter: '${value}'" }
           }
@@ -163,13 +164,9 @@ data class KurobaCookie(
         return null
       }
 
-      if (resultExpiration == null) {
-        resultExpiration = Expiration.Session
-      }
-
       return KurobaCookie(
         value = resultValue,
-        expiration = resultExpiration,
+        expiration = maxAgeExpiration ?: expiresExpiration ?: Expiration.Session,
         path = resultPath
       )
     }

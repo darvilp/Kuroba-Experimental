@@ -1,8 +1,14 @@
 package com.github.k1rakishou.common
 
 import junit.framework.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE, sdk = [28])
 class KurobaCookieTest {
   @Test
   fun `should be able to extract cookie by key and Max-Age expiration parameter`() {
@@ -135,7 +141,7 @@ class KurobaCookieTest {
     assertEquals("A1f7WtKTEeucqZ5hHJ-8-8hAk6FpfnCseUZu157GZKXImcmfpnPBkoFxryyWWSzYWaxZvl8IEzf30Wh1_", kurobaCookie.value)
     kurobaCookie.expiration as KurobaCookie.Expiration.Time
 
-    // Max-Age comes after expires so it takes precedence
+    // Max-Age takes precedence regardless of attribute order
     val deltaSeconds = (kurobaCookie.expiration.expirationTimeMillis - now) / 1000
     assert(deltaSeconds in 31536000..31536200) { "Bad deltaSeconds: ${deltaSeconds}" }
 
@@ -146,5 +152,42 @@ class KurobaCookieTest {
   fun `should return null when only the cookie value is passed without the key`() {
     val kurobaCookie = KurobaCookie.fromRawCookie("A1f7WtKTEeucqZ5hHJ-8-8hAk6FpfnCseUZu157GZKXImcmfpnPBkoFxryyWWSzYWaxZvl8IEzf30Wh1_", "4chan_pass")
     assertEquals(null, kurobaCookie)
+  }
+
+  @Test
+  fun `Max-Age deletion wins over future Expires in either order`() {
+    for (age in listOf(0, -1)) {
+      for (attributes in expirationOrders("Max-Age=$age", "Expires=Thu, 01 Jan 2099 00:00:00 GMT")) {
+        val cookie = KurobaCookie.fromRawCookie("4chan_pass=value; $attributes", "4chan_pass")!!
+        assertTrue(cookie.expired(System.currentTimeMillis()))
+      }
+    }
+  }
+
+  @Test
+  fun `positive Max-Age wins over past Expires in either order`() {
+    for (attributes in expirationOrders("Max-Age=3600", "Expires=Sat, 01 Jan 2000 00:00:00 GMT")) {
+      val before = System.currentTimeMillis()
+      val cookie = KurobaCookie.fromRawCookie("4chan_pass=value; $attributes", "4chan_pass")!!
+      val after = System.currentTimeMillis()
+      val expiration = cookie.expiration as KurobaCookie.Expiration.Time
+      assertTrue(expiration.expirationTimeMillis in (before + 3600000)..(after + 3600000))
+    }
+  }
+
+  @Test
+  fun `invalid expiration attributes fall back to the valid attribute`() {
+    for (attributes in expirationOrders("Max-Age=invalid", "Expires=Sat, 01 Jan 2000 00:00:00 GMT")) {
+      val cookie = KurobaCookie.fromRawCookie("test=value; $attributes", "test")!!
+      assertEquals(946684800000L, cookie.expirationMillis())
+    }
+    for (attributes in expirationOrders("Max-Age=0", "Expires=invalid")) {
+      val cookie = KurobaCookie.fromRawCookie("test=value; $attributes", "test")!!
+      assertTrue(cookie.expired(System.currentTimeMillis()))
+    }
+  }
+
+  private fun expirationOrders(first: String, second: String): List<String> {
+    return listOf("$first; $second", "$second; $first")
   }
 }
