@@ -1,3 +1,94 @@
+# Experimental fork changes
+
+This branch combines the playback work below with Next post navigation. It includes upstream v1.3.47, Media3 playback, sound-post synchronization, paused-video restoration, and the Samsung VP8 operating-rate experiment.
+
+Experimental APKs install alongside Personal and upstream builds with separate app data. Updates are installed manually. See [experimental release instructions](docs/experimental-releases.md) for building and publishing.
+
+## Development branch summaries
+
+This catalog covers the fork's feature, fix, spike, and personal integration branches. Each entry states whether its changes are included here; older investigation branches contain alternatives that are not part of this release.
+
+### `feature/654-video-end-behavior`
+
+Adds Loop, AutoAdvance, and Stop choices for video completion in the media viewer, with support for both ExoPlayer and MPV. AutoAdvance moves to the next media item when a video ends. Existing loop preferences migrate to the new setting.
+
+This branch keeps the completion feature separate from playback lifecycle fixes and the Media3 migration.
+
+**Release integration:** Included in this release branch.
+
+### `feature/media-viewer-next-post`
+
+Adds a Next post button alongside the media controls while keeping swiping available. It appears with the bottom controls on phones and the side controls on tablets. It skips remaining attachments from the current post and opens the next post with media in the current filtered order.
+
+The button has a 48 dp tap target and an accessibility label. It disables when no next post is available and does not wrap to the beginning.
+
+**Release integration:** Included in this release branch.
+
+### `fix/media-viewer-playback-lifecycle`
+
+Pauses and stops hidden video and sound-post players even when they are buffering. It preserves the requested playback state and cancels stale preload and listener work to prevent audio from the previous page continuing after navigation.
+
+Adjacent remote videos prefetch into the shared cache without preparing offscreen decoders. This branch retains the existing ExoPlayer API; the Media3 migration is separate.
+
+**Release integration:** Included and adapted for Media3 in this release branch.
+
+### `fix/vp8-decoder-fallback`
+
+Tests synchronous MediaCodec queueing in the existing ExoPlayer backend and adds playback diagnostics for investigating VP8 stalls and dropped frames. The queueing change applies to this backend generally, not only to VP8 videos.
+
+Despite the branch name, the current tip removes the earlier Samsung software-VP8 decoder preference and decoder fallback. This is an investigation branch, not a confirmed general fix.
+
+**Release integration:** Separate investigation; this release branch does not include its synchronous-queueing diagnostic or the removed software-decoder preference.
+
+### `personal/654-video-end-behavior`
+
+Combines Loop, AutoAdvance, and Stop video completion choices with the MPV auto-advance completion fix. It includes Personal packaging so the APK can install alongside the upstream app with separate data.
+
+This is the earlier personal build for the completion feature. Cumulative playback work continues on the integration branches.
+
+**Release integration:** Its completion behavior is included. Release APKs use the Experimental package instead of the Personal package.
+
+### `personal/media3-integration`
+
+Combines the playback lifecycle fix, Loop/AutoAdvance/Stop completion controls, and the migration from standalone ExoPlayer to AndroidX Media3 1.10.1. Personal packaging allows device testing alongside the upstream app.
+
+This is a cumulative test branch. The independent feature and fix branches retain their narrower scopes for review.
+
+**Release integration:** Its combined playback changes are included. Release APKs use the Experimental package.
+
+### `personal/media3-vp8-operating-rate`
+
+Combines Media3 playback, playback lifecycle fixes, and Loop/AutoAdvance/Stop controls with an experimental Samsung VP8 codec operating-rate policy. The policy supplies a minimum operating rate based on 30 fps and playback speed, with diagnostics for investigating playback performance.
+
+This branch also integrates upstream v1.3.47 and the Experimental release channel. Experimental APKs install alongside Personal and upstream builds with separate data and require manual updates. The VP8 policy remains experimental.
+
+**Release integration:** This is the integration base of the release branch; its playback changes and Experimental release channel are included.
+
+### `personal/video-playback-integration`
+
+Combines video completion controls and the playback lifecycle fix in a Personal APK. It also resets completed videos when revisited after auto-advance, so navigating backward can replay them.
+
+The current tip includes the synchronous MediaCodec queueing diagnostic and removes the earlier software-VP8 decoder preference. It uses the older standalone ExoPlayer backend and is a separate investigation build from the Media3 integrations.
+
+**Release integration:** Separate older integration. Its lifecycle and completion controls are included through other branches; its auto-advance revisit reset and synchronous-queueing diagnostic are not included.
+
+### `spike/media3-migration`
+
+Migrates standalone ExoPlayer dependencies and playback APIs to AndroidX Media3 1.10.1, including the copied player UI components and scoped unstable-API opt-ins. It also contains the playback lifecycle fix used as its starting point.
+
+This is an investigation branch for the migration. It does not include the configurable video completion feature or Personal packaging.
+
+**Release integration:** The migration and lifecycle changes are included through the Media3 integration.
+
+### `spike/media3-vp8-operating-rate`
+
+Builds on the Media3 migration and playback lifecycle fix to test an explicit codec operating rate for VP8 on Samsung devices. The policy uses a minimum of 30 fps multiplied by playback speed and retains the normal Media3 rate policy for other formats.
+
+Adds codec and frame diagnostics for evaluating the experiment. This branch does not include Personal packaging or the configurable video completion feature; the policy is not a confirmed general fix.
+
+**Release integration:** The operating-rate experiment is included through the Media3 integration and remains experimental.
+
+---
 
 # Kuroba Experimental
 
