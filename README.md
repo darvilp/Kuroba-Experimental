@@ -1,3 +1,12 @@
+# Synchronous codec queueing experiment
+
+Branch: `fix/vp8-decoder-fallback`
+
+Tests synchronous MediaCodec queueing in the existing ExoPlayer backend and adds playback diagnostics for investigating VP8 stalls and dropped frames. The queueing change applies to this backend generally, not only to VP8 videos.
+
+Despite the branch name, the current tip removes the earlier Samsung software-VP8 decoder preference and decoder fallback. This is an investigation branch, not a confirmed general fix.
+
+---
 
 # Kuroba Experimental
 
