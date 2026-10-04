@@ -1,3 +1,12 @@
+# AndroidX Media3 migration spike
+
+Branch: `spike/media3-migration`
+
+Migrates standalone ExoPlayer dependencies and playback APIs to AndroidX Media3 1.10.1, including the copied player UI components and scoped unstable-API opt-ins. It also contains the playback lifecycle fix used as its starting point.
+
+This is an investigation branch for the migration. It does not include the configurable video completion feature or Personal packaging.
+
+---
 
 # Kuroba Experimental
 
