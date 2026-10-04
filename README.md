@@ -1,3 +1,12 @@
+# Personal playback and codec investigation build
+
+Branch: `personal/video-playback-integration`
+
+Combines video completion controls and the playback lifecycle fix in a Personal APK. It also resets completed videos when revisited after auto-advance, so navigating backward can replay them.
+
+The current tip includes the synchronous MediaCodec queueing diagnostic and removes the earlier software-VP8 decoder preference. It uses the older standalone ExoPlayer backend and is a separate investigation build from the Media3 integrations.
+
+---
 
 # Kuroba Experimental
 
