@@ -187,6 +187,18 @@ class KurobaCookieTest {
     }
   }
 
+  @Test
+  fun `large Max-Age values saturate without wrapping`() {
+    for (age in listOf(Long.MAX_VALUE.toString(), "999999999999999999999")) {
+      val cookie = KurobaCookie.fromRawCookie("test=value; Max-Age=$age", "test")!!
+      assertEquals(Long.MAX_VALUE, cookie.expirationMillis())
+    }
+    for (age in listOf(Long.MIN_VALUE.toString(), "-999999999999999999999")) {
+      val cookie = KurobaCookie.fromRawCookie("test=value; Max-Age=$age", "test")!!
+      assertTrue(cookie.expired(System.currentTimeMillis()))
+    }
+  }
+
   private fun expirationOrders(first: String, second: String): List<String> {
     return listOf("$first; $second", "$second; $first")
   }

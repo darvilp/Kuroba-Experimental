@@ -81,6 +81,7 @@ data class KurobaCookie(
 
   companion object {
     private const val TAG = "KurobaCookie"
+    private val maxAgePattern = Regex("-?[0-9]+")
 
     val HttpDateFormatter = DateTimeFormat
       .forPattern("EEE, dd MMM yyyy HH:mm:ss 'GMT'")
@@ -134,9 +135,17 @@ data class KurobaCookie(
 
         if (key.equals("Max-Age", ignoreCase = true)) {
           // Max-Age is in seconds (RFC 6265)
-          val maxAgeSeconds = value.toLongOrNull()
+          val maxAgeSeconds = value.toLongOrNull() ?: if (maxAgePattern.matches(value)) {
+            if (value.startsWith('-')) Long.MIN_VALUE else Long.MAX_VALUE
+          } else {
+            null
+          }
           if (maxAgeSeconds != null) {
-            val expirationTimeMillis = currentTime + (maxAgeSeconds * 1000L)
+            val expirationTimeMillis = when {
+              maxAgeSeconds <= 0 -> currentTime
+              maxAgeSeconds > (Long.MAX_VALUE - currentTime) / 1000L -> Long.MAX_VALUE
+              else -> currentTime + (maxAgeSeconds * 1000L)
+            }
             maxAgeExpiration = Expiration.Time(expirationTimeMillis)
           }
 

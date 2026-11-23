@@ -110,8 +110,6 @@ class MpvVideoMediaView(
   private var playing = false
   private var activeVideoEndBehavior = VideoEndBehavior.Loop
   private var playbackCompletionReported = false
-  private var lastKnownPlaybackPositionSeconds: Double? = null
-  private var lastKnownDurationSeconds: Double? = null
   private var lastDisplayedDurationSeconds = -1
 
   // Between MPV_EVENT_FILE_LOADED and MPV_EVENT_END_FILE
@@ -694,8 +692,6 @@ class MpvVideoMediaView(
       MPVLib.mpvEventId.MPV_EVENT_START_FILE -> {
         Logger.d(TAG, "onEvent MPV_EVENT_START_FILE")
         playbackCompletionReported = false
-        lastKnownPlaybackPositionSeconds = null
-        lastKnownDurationSeconds = null
         mpvFileLoaded = false
         mpvFileStarted = true
         lastMpvErrorMessage = null
@@ -721,25 +717,7 @@ class MpvVideoMediaView(
         resetStallState()
         updatePlayPauseButton()
 
-        val eofReached = actualVideoPlayerView.eofReached == true
-        val shouldReportCompletion = MpvPlaybackCompletionDetector.shouldReportCompletion(
-          videoEndBehavior = activeVideoEndBehavior,
-          eofReached = eofReached,
-          lastKnownPositionSeconds = lastKnownPlaybackPositionSeconds,
-          durationSeconds = lastKnownDurationSeconds
-        )
-
-        Logger.d(
-          TAG,
-          "onEvent MPV_EVENT_END_FILE eofReached=$eofReached, " +
-            "lastKnownPositionSeconds=$lastKnownPlaybackPositionSeconds, " +
-            "durationSeconds=$lastKnownDurationSeconds, " +
-            "shouldReportCompletion=$shouldReportCompletion"
-        )
-
-        if (shouldReportCompletion) {
-          reportPlaybackCompletion()
-        }
+        onEofReached(actualVideoPlayerView.eofReached == true)
       }
       MPVLib.mpvEventId.MPV_EVENT_SHUTDOWN -> {
         Logger.d(TAG, "onEvent MPV_EVENT_SHUTDOWN")
@@ -806,7 +784,7 @@ class MpvVideoMediaView(
   }
 
   private fun onEofReached(eofReached: Boolean) {
-    if (!eofReached) {
+    if (!MpvPlaybackCompletionDetector.shouldReportCompletion(activeVideoEndBehavior, eofReached)) {
       return
     }
 
@@ -822,7 +800,7 @@ class MpvVideoMediaView(
   }
 
   private fun reportPlaybackCompletion() {
-    if (playbackCompletionReported) {
+    if (!shown || playbackCompletionReported) {
       return
     }
 
@@ -843,7 +821,6 @@ class MpvVideoMediaView(
 
     when (property) {
       "duration/full" -> {
-        lastKnownDurationSeconds = value
         updatePlaybackDuration((value * 1000.0).toLong())
       }
     }
@@ -1085,7 +1062,6 @@ class MpvVideoMediaView(
     }
 
     val progress = playbackProgressTracker.update(actualVideoPlayerView, SystemClock.elapsedRealtime())
-    lastKnownPlaybackPositionSeconds = progress.positionMs / 1000.0
 
     if (progress.durationMs > 0) {
       updatePlaybackDuration(progress.durationMs)
@@ -1101,7 +1077,6 @@ class MpvVideoMediaView(
   }
 
   private fun updatePlaybackDuration(durationMs: Long) {
-    lastKnownDurationSeconds = durationMs / 1000.0
     val durationSeconds = ceil(durationMs.toDouble() / 1000.0).toInt()
     if (durationSeconds != lastDisplayedDurationSeconds) {
       lastDisplayedDurationSeconds = durationSeconds
