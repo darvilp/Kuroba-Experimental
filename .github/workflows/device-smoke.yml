@@ -32,9 +32,15 @@ jobs:
             install_sdk_package emulator
           fi
           install_sdk_package 'system-images;android-35;google_apis;x86_64'
+          export ANDROID_USER_HOME="$RUNNER_TEMP/android"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+          mkdir -p "$ANDROID_AVD_HOME"
           printf 'no\n' | avdmanager create avd --name kuroba-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_6
+          test -f "$ANDROID_AVD_HOME/kuroba-smoke.ini"
+          adb start-server
           nohup "$ANDROID_HOME/emulator/emulator" -avd kuroba-smoke -no-window -no-boot-anim -gpu swiftshader_indirect -cores 2 -memory 3072 -no-snapshot -no-audio -no-metrics > "$RUNNER_TEMP/emulator.log" 2>&1 &
-          timeout 180 adb wait-for-device
+          timeout 90 adb wait-for-device
           timeout 240 bash -c 'until [[ "$(adb shell getprop sys.boot_completed | tr -d "\r")" == 1 ]]; do sleep 3; done'
           adb shell getprop ro.product.cpu.abilist | grep -F arm64-v8a
           adb shell input keyevent KEYCODE_WAKEUP
