@@ -167,6 +167,19 @@ class ScrollbarView @JvmOverloads constructor(
 
     val layoutManager = attachedRecyclerView.layoutManager
 
+    val scrollbarVisibilityTracker = remember(attachedRecyclerView) { ScrollbarVisibilityTracker() }
+
+    DisposableEffect(attachedRecyclerView) {
+      val scrollListener = object : RecyclerView.OnScrollListener() {
+        override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+          scrollbarVisibilityTracker.onScrollInProgressChanged(newState != RecyclerView.SCROLL_STATE_IDLE)
+        }
+      }
+
+      attachedRecyclerView.addOnScrollListener(scrollListener)
+      onDispose { attachedRecyclerView.removeOnScrollListener(scrollListener) }
+    }
+
     Box(
       modifier = Modifier
         .fillMaxHeight()
@@ -207,6 +220,11 @@ class ScrollbarView @JvmOverloads constructor(
               paddingTop = paddingTop,
               paddingBottom = paddingBottom,
               scrollbarWidth = scrollbarWidth.roundToPx(),
+              isScrollbarVisible = {
+                // Same condition as the one used to decide whether to draw the scrollbar at all
+                val scrollbarDrawn = attachedRecyclerView.computeVerticalScrollRange() > (attachedRecyclerView.height * 1.33f)
+                scrollbarDrawn && scrollbarVisibilityTracker.isScrollbarVisible()
+              },
               onScrollbarDragStateStarted = {
                 scrollbarManualDragProgressState.value = null
                 _thumbDragListener?.onDragStarted()
@@ -216,6 +234,7 @@ class ScrollbarView @JvmOverloads constructor(
               },
               onScrollbarDragStateEnded = {
                 scrollbarManualDragProgressState.value = null
+                scrollbarVisibilityTracker.onScrollbarDragEnded()
                 _thumbDragListener?.onDragEnded()
               }
             )
@@ -280,8 +299,8 @@ class ScrollbarView @JvmOverloads constructor(
         }
 
         val isBeingScrolledOrDragged = recyclerViewScrollState == RecyclerViewScrollState.Scrolling || isScrollbarDragged
-        val duration = if (isBeingScrolledOrDragged) 150 else 500
-        val delay = if (isBeingScrolledOrDragged) 0 else 1500
+        val duration = if (isBeingScrolledOrDragged) 150 else SCROLLBAR_FADE_OUT_DURATION_MS
+        val delay = if (isBeingScrolledOrDragged) 0 else SCROLLBAR_FADE_OUT_DELAY_MS
         val scrollbarWidthPx = with(density) { if (isBeingScrolledOrDragged) scrollbarWidth.roundToPx() else 0 }
         val tempArray = remember(key1 = layoutManager) { IntArray(32) }
 
@@ -467,23 +486,20 @@ class ScrollbarView @JvmOverloads constructor(
       return
     }
 
-    val visibleItemsCount = recyclerViewLayoutManager.fullyVisibleItemsCount(tempArray)
-    val firstVisibleElementIndex = recyclerViewLayoutManager.firstVisibleElementIndex(tempArray)
-
-    val (realScrollbarOffsetY, realScrollbarHeight) = with(density) {
-      calculateRealScrollbarHeight(
-        topPaddingPx = topPaddingPx,
-        bottomPaddingPx = bottomPaddingPx,
-        visibleItemsCount = visibleItemsCount,
-        totalItemsCount = totalItemsCount,
-        firstVisibleElementIndex = firstVisibleElementIndex,
-        scrollbarMinHeight = 1.dp.toPx(),
-        realScrollbarHeightDiff = null
-      )
-    }
+    val visibleItemsRange = recyclerViewLayoutManager.visibleItemsRange(tempArray)
+      ?: return
 
     val desiredHeight = 2.dp.toPx()
-    val offsetY = topPaddingPx + realScrollbarOffsetY + ((realScrollbarHeight - desiredHeight) / 2f)
+    val trackHeight = this.size.height - topPaddingPx - bottomPaddingPx
+
+    val markOffsetY = calculateRealScrollbarMarkOffsetY(
+      trackHeight = trackHeight,
+      markHeight = desiredHeight,
+      totalItemsCount = totalItemsCount,
+      visibleItemsRange = visibleItemsRange
+    )
+
+    val offsetY = topPaddingPx + markOffsetY
     val offsetX = this.size.width - scrollbarWidthAnimated
 
     drawRect(
@@ -583,34 +599,28 @@ class ScrollbarView @JvmOverloads constructor(
     return Pair(scrollbarOffsetY, desiredScrollbarHeightPx)
   }
 
-  private fun ContentDrawScope.calculateRealScrollbarHeight(
-    topPaddingPx: Float,
-    bottomPaddingPx: Float,
-    visibleItemsCount: Int,
+  /**
+   * Maps the position of the visible items window onto the track (like a regular scrollbar thumb with the height of
+   * the mark). When the first item is visible the mark is at the very top of the track, when the last item is visible
+   * the mark is at the very bottom. In between, the mark always stays within the part of the track which corresponds
+   * to the visible items so it's in line with the post marks drawn on the track.
+   * */
+  private fun calculateRealScrollbarMarkOffsetY(
+    trackHeight: Float,
+    markHeight: Float,
     totalItemsCount: Int,
-    firstVisibleElementIndex: Int,
-    scrollbarMinHeight: Float,
-    realScrollbarHeightDiff: Float?
-  ): Pair<Float, Float> {
-    val totalHeightWithoutPaddings = this.size.height - (realScrollbarHeightDiff ?: 0f) - topPaddingPx - bottomPaddingPx
-    val elementHeight = totalHeightWithoutPaddings / totalItemsCount
-    val scrollbarOffsetY = firstVisibleElementIndex * elementHeight
-    val scrollbarHeightReal = (visibleItemsCount * elementHeight)
-    val scrollbarHeightAdjusted = scrollbarHeightReal.coerceAtLeast(scrollbarMinHeight)
+    visibleItemsRange: IntRange
+  ): Float {
+    val visibleItemsCount = (visibleItemsRange.last - visibleItemsRange.first + 1).coerceAtLeast(1)
+    val scrollableItemsCount = totalItemsCount - visibleItemsCount
 
-    if (scrollbarHeightAdjusted > scrollbarHeightReal && realScrollbarHeightDiff == null) {
-      return calculateRealScrollbarHeight(
-        topPaddingPx = topPaddingPx,
-        bottomPaddingPx = bottomPaddingPx,
-        visibleItemsCount = visibleItemsCount,
-        totalItemsCount = totalItemsCount,
-        firstVisibleElementIndex = firstVisibleElementIndex,
-        scrollbarMinHeight = scrollbarMinHeight,
-        realScrollbarHeightDiff = (scrollbarHeightAdjusted - scrollbarHeightReal)
-      )
+    val progress = if (scrollableItemsCount > 0) {
+      (visibleItemsRange.first.toFloat() / scrollableItemsCount.toFloat()).coerceIn(0f, 1f)
+    } else {
+      0f
     }
 
-    return Pair(scrollbarOffsetY, scrollbarHeightAdjusted)
+    return progress * (trackHeight - markHeight).coerceAtLeast(0f)
   }
 
   private suspend fun PointerInputScope.processFastScrollerInputs(
@@ -621,6 +631,7 @@ class ScrollbarView @JvmOverloads constructor(
     paddingTop: Int,
     paddingBottom: Int,
     scrollbarWidth: Int,
+    isScrollbarVisible: () -> Boolean,
     onScrollbarDragStateStarted: () -> Unit,
     onScrollbarDragStateUpdated: (Float) -> Unit,
     onScrollbarDragStateEnded: () -> Unit,
@@ -635,6 +646,11 @@ class ScrollbarView @JvmOverloads constructor(
         ?: return@awaitEachGesture
 
       if (down.position.x < (width - scrollbarWidth)) {
+        return@awaitEachGesture
+      }
+
+      if (!isScrollbarVisible()) {
+        // The scrollbar is hidden, let the gesture scroll the list normally
         return@awaitEachGesture
       }
 
@@ -745,13 +761,40 @@ class ScrollbarView @JvmOverloads constructor(
     }
   }
 
-  private fun LayoutManager.firstVisibleElementIndex(tempArray: IntArray): Int {
-    return when (this) {
-      is GridLayoutManager -> findFirstCompletelyVisibleItemPosition()
-      is LinearLayoutManager -> findFirstCompletelyVisibleItemPosition()
-      is StaggeredGridLayoutManager -> findFirstCompletelyVisibleItemPositions(tempArray).min()
+  /**
+   * The range of completely visible items. Falls back to the partially visible items when there are no completely
+   * visible items (e.g. a post that is taller than the screen). Null when nothing is visible.
+   * */
+  private fun LayoutManager.visibleItemsRange(tempArray: IntArray): IntRange? {
+    val (firstCompletelyVisible, lastCompletelyVisible) = when (this) {
+      is LinearLayoutManager -> findFirstCompletelyVisibleItemPosition() to findLastCompletelyVisibleItemPosition()
+      is StaggeredGridLayoutManager -> {
+        val first = findFirstCompletelyVisibleItemPositions(tempArray).filter { it >= 0 }.minOrNull() ?: -1
+        val last = findLastCompletelyVisibleItemPositions(tempArray).filter { it >= 0 }.maxOrNull() ?: -1
+        first to last
+      }
       else -> error("Unexpected layout manager: ${this::class.java.name}")
     }
+
+    if (firstCompletelyVisible >= 0 && lastCompletelyVisible >= firstCompletelyVisible) {
+      return firstCompletelyVisible..lastCompletelyVisible
+    }
+
+    val (firstVisible, lastVisible) = when (this) {
+      is LinearLayoutManager -> findFirstVisibleItemPosition() to findLastVisibleItemPosition()
+      is StaggeredGridLayoutManager -> {
+        val first = findFirstVisibleItemPositions(tempArray).filter { it >= 0 }.minOrNull() ?: -1
+        val last = findLastVisibleItemPositions(tempArray).filter { it >= 0 }.maxOrNull() ?: -1
+        first to last
+      }
+      else -> error("Unexpected layout manager: ${this::class.java.name}")
+    }
+
+    if (firstVisible >= 0 && lastVisible >= firstVisible) {
+      return firstVisible..lastVisible
+    }
+
+    return null
   }
 
   private enum class RecyclerViewScrollState {
