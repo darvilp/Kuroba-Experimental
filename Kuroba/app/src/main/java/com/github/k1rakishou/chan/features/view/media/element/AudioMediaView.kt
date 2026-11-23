@@ -26,9 +26,6 @@ class AudioMediaView(
   kurobaSettings: KurobaSettings,
   private val onThumbnailFullyLoadedFunc: () -> Unit,
   private val isSystemUiHidden: () -> Boolean,
-  cachedHttpDataSourceFactory: DataSource.Factory,
-  fileDataSourceFactory: DataSource.Factory,
-  contentDataSourceFactory: DataSource.Factory,
   override val viewableMedia: ViewableMedia.Audio,
   override val pagerPosition: Int,
   override val totalPageItemsCount: Int
@@ -38,9 +35,6 @@ class AudioMediaView(
   mediaViewContract = mediaViewContract,
   kurobaSettings = kurobaSettings,
   mediaViewState = initialMediaViewState,
-  cachedHttpDataSourceFactory = cachedHttpDataSourceFactory,
-  fileDataSourceFactory = fileDataSourceFactory,
-  contentDataSourceFactory = contentDataSourceFactory,
 ) {
   private val mediaViewNotSupportedMessage: TextView
   private val openInBrowserButton: ColorizableBarButton

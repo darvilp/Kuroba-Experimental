@@ -247,11 +247,21 @@ Re-enable this permission in the app settings if you permanently disabled it."</
     <string name="image_tile_load_failed">Failed to load image tile (reason: %1$s)</string>
     <string name="image_failed_gif_error">Failed to load gif (reason: %1$s)</string>
     <string name="image_failed_video_error">Failed to load video (reason: %1$s)</string>
+    <string name="mpv_failed_to_load_video">Failed to load video\n\n%1$s\n\nTap to retry</string>
+    <string name="mpv_unknown_error">unknown error</string>
     <string name="image_not_found">Image not found</string>
 
-    <string name="media_viewer_loading_bg_audio">Loading external audio…</string>
-    <string name="media_viewer_error_loading_bg_audio">Failed to load image bg audio, error=\'%1$s\'</string>
-    <string name="media_viewer_error_cannot_load_bg_audio_because_of_settings">Cannot load BG audio (\'%1$s\') because current media load settings do not allow doing that</string>
+    <string name="media_viewer_error_loading_bg_audio">Failed to load sound post audio, error=\'%1$s\'</string>
+    <string name="sound_post_not_loaded">Sound is not loaded</string>
+    <string name="sound_post_loading">Loading sound…</string>
+    <string name="sound_post_loading_progress">Loading sound… %1$d%%</string>
+    <string name="sound_post_failed_to_load">Failed to load sound</string>
+    <string name="sound_post_not_loaded_tap_to_load">Sound is not loaded, tap to load</string>
+    <string name="sound_post_failed_to_load_tap_to_retry">Failed to load sound, tap to retry</string>
+    <string name="sound_post_proxy_warning_title">Sound post while using a proxy</string>
+    <string name="sound_post_proxy_warning_description">You have a proxy enabled for this site. Sound posts are loaded from third party file hosts (\'%1$s\') without the proxy and without any cookies, which means the file host will see your real IP address.\n\nThis dialog is shown once per app launch. You can always load a sound manually by pressing the play button of the sound player.</string>
+    <string name="sound_post_proxy_warning_load">Load sounds</string>
+    <string name="sound_post_proxy_warning_do_not_load">Don\'t load</string>
     <string name="media_viewer_action_not_supported">This action is not supported in media viewer</string>
 
     <string name="thread_load_failed_ssl">HTTPS error</string>
@@ -489,7 +499,7 @@ Usually that means that you forgot to remove a space from the beginning or the e
     <string name="reply_make_new_thread_hint">Creating a new thread</string>
     <string name="reply_reply_in_thread_hint">Replying in a thread</string>
     <string name="reply_submit">Submit</string>
-    <string name="reply_error_message">Error posting:\n\n%s</string>
+    <string name="reply_error_message">Error posting.\n%s</string>
     <string name="reply_error_unknown">Unknown error while trying to post:\n\n%s</string>
     <string name="reply_error_failed_to_process_dvach_anti_spam_locally">Failed to process dvach anti-spam, reason: %1$s.</string>
     <string name="reply_error_authentication_required">Authentication required</string>
@@ -1016,7 +1026,14 @@ If you ever log out or if the passcode expires you will have to change reply mod
     <string name="site_settings_authentication_email_verification_webview_error_unknown">Email verification failure! Error: %1$s</string>
     <string name="site_settings_authentication_email_verification_webview_success">Email verification success!</string>
     <string name="site_settings_authentication_reset_email_cookie">Would you like to reset email cookie?</string>
-    <string name="site_settings_authentication_reset_email_cookie_description">This will remove the verified 4chan_pass cookie so the regular (unverified) 4chan_pass cookie will be used for posting</string>
+    <string name="site_settings_authentication_reset_email_cookie_description">This will remove the verified 4chan_pass cookie and mark the email as not verified</string>
+    <string name="site_settings_authentication_email_verification_choose_step_dialog_title">Email verification</string>
+    <string name="site_settings_authentication_email_verification_choose_step_dialog_description">4chan email verification consists of two steps:\n\n1. Enter your email and solve the captchas. 4chan will send a verification link to that email.\n\n2. Open the verification link and solve the captchas again.\n\nBoth steps must be done inside the app, otherwise 4chan may reject the verification.</string>
+    <string name="site_settings_authentication_email_verification_no_verification_url">I don\'t have a verification url</string>
+    <string name="site_settings_authentication_email_verification_have_verification_url">I have a verification url</string>
+    <string name="site_settings_authentication_email_verification_request_webview_title">Request email verification link</string>
+    <string name="site_settings_authentication_email_verification_request_success_dialog_title">Verification link sent</string>
+    <string name="site_settings_authentication_email_verification_request_success_dialog_description">4chan has sent a verification link to your email. Copy it, then open Email verification again and select \"I have a verification url\".</string>
 
     <string name="thread_presenter_no_archives_found_to_open_thread">No archives found to open %1$s. Check that you have enabled archives to open this thread. It is also possible that no archives support this site/board.</string>
     <string name="thread_presenter_no_posts_of_the_same_poster_found">No posts of the same poster found</string>
@@ -1442,6 +1459,7 @@ If you ever log out or if the passcode expires you will have to change reply mod
     <string name="mpv_sw_decoding">SW</string>
     <string name="mpv_switching_to_sw_decoding">Switching to software decoding</string>
     <string name="mpv_switching_to_hw_decoding">Switching to hardware decoding</string>
+    <string name="mpv_hardware_decoding_not_supported">Hardware decoding is not supported for this video, using software decoding</string>
     <string name="mpv_fast_video_decoding">Fast video decoding mode</string>
     <string name="mpv_use_gpu_next_vo">Use gpu_next video output</string>
     <string name="mpv_library_load_error">Failed to load mpv native libraries.
@@ -1705,8 +1723,9 @@ Actual error: \'%1$s\'</string>
     <string name="setting_requires_other_settings">Requires:</string>
     <string name="update_available">Update available!</string>
 
-    <string name="api_33_android_13_notifications_permission_title">Api 33 (Android 13+) notifications permission</string>
-    <string name="api_33_android_13_notifications_permission_descriptor">Api 33 (Android 13+) requires applications to request for a permission to display notifications. Without this permission some application features may not work correctly (posting, media downloading, reply notifications, thread last page notifications, etc).\n\nYou can always enable this manually in Android OS application settings.</string>
+    <string name="notifications_permission_required_title">Notifications permission is required</string>
+    <string name="notifications_permission_required_description">This setting needs the permission to show notifications (Android 13+). The setting was not enabled.\n\nIf the permission request doesn\'t show up anymore, you can grant the permission manually in the Android application settings.</string>
+    <string name="notifications_permission_revoked_settings_disabled">The notifications permission is not granted. The following settings were disabled: %1$s</string>
 
     <string name="open_url_in_webview_proxy_leak_title">Open in WebView would bypass the proxy</string>
     <string name="open_url_in_webview_proxy_leak_description">A proxy is configured for this site, but the Android WebView does not honor application proxies. Loading this URL in the built in WebView will connect directly and may reveal your real IP to the destination.\n\nOpen anyway, or cancel and use an external app.</string>
