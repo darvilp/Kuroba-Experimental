@@ -15,6 +15,12 @@ jobs:
         run: |
           test -c /dev/kvm
           if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then sudo setfacl -m "u:$USER:rw" /dev/kvm; fi
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          sdkmanager_path="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -1)"
+          test -x "$sdkmanager_path"
+          tools_bin="$(dirname "$sdkmanager_path")"
+          export PATH="$tools_bin:$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           sdkmanager 'emulator' 'system-images;android-35;google_apis;x86_64'
           printf 'no\n' | avdmanager create avd --name kuroba-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_6
           nohup "$ANDROID_HOME/emulator/emulator" -avd kuroba-smoke -no-window -no-boot-anim -gpu swiftshader_indirect -cores 2 -memory 3072 -no-snapshot -no-audio -no-metrics > "$RUNNER_TEMP/emulator.log" 2>&1 &
