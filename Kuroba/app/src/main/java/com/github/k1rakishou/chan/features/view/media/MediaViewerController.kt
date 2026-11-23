@@ -82,6 +82,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.measureTime
 
 class MediaViewerController(
   context: Context,
@@ -247,14 +248,8 @@ class MediaViewerController(
           currentChanDescriptor = currentChanDescriptor,
           linkable = linkable,
           onQuoteClicked = { postDescriptor ->
-            val postDescriptor = when (currentChanDescriptor) {
-              is ChanDescriptor.CompositeCatalogDescriptor -> {
-                error("Cannot use CompositeCatalogDescriptor here")
-              }
-              is ChanDescriptor.CatalogDescriptor -> postDescriptor
-              is ChanDescriptor.ThreadDescriptor -> postDescriptor
-            }
-
+            // The post descriptor is created from the thread of the post containing the quote so it works with any
+            // kind of currentChanDescriptor (including composite catalogs)
             showPost(postDescriptor)
           },
           onQuoteToHiddenOrRemovedPostClicked = { notSupported() },
@@ -385,7 +380,10 @@ class MediaViewerController(
     postPopupHelper.popAll()
     globalWindowInsetsManager.removeInsetsUpdatesListener(this)
 
-    mediaViewerAdapter?.onDestroy()
+    // Unbinds all media views which releases their players (mpv, ExoPlayer, sound posts)
+    val adapterDestroyDuration = measureTime { mediaViewerAdapter?.onDestroy() }
+    Logger.d(TAG, "onDestroy() mediaViewerAdapter.onDestroy() took ${adapterDestroyDuration}")
+
     mediaLongClickMenuHelper.onDestroy()
     mediaViewerToolbar.onDestroy()
 
@@ -393,7 +391,8 @@ class MediaViewerController(
     pager.removeOnPageChangeListener(this)
     pager.adapter = null
 
-    ExoPlayerWrapper.releaseAll()
+    val releaseAllDuration = measureTime { ExoPlayerWrapper.releaseAll() }
+    Logger.d(TAG, "onDestroy() ExoPlayerWrapper.releaseAll() took ${releaseAllDuration}")
   }
 
   override fun onConfigurationChanged(newConfig: Configuration) {
@@ -832,6 +831,8 @@ class MediaViewerController(
       ?.mediaLocation
       ?: return
 
+    val requestProperties = createRequestProperties(mediaViewerState.loadedMedia)
+
     val adapter = MediaViewerAdapter(
       context = context,
       appConstants = appConstants,
@@ -843,7 +844,8 @@ class MediaViewerController(
       viewableMediaList = mediaViewerState.loadedMedia,
       previewThumbnailLocation = previewThumbnailLocation,
       mediaViewerScrollerHelper = mediaViewerScrollerHelper,
-      cachedHttpDataSourceFactory = createCacheDataSourceFactory(mediaViewerState.loadedMedia),
+      requestProperties = requestProperties,
+      cachedHttpDataSourceFactory = createCacheDataSourceFactory(requestProperties),
       fileDataSourceFactory = FileDataSource.Factory(),
       contentDataSourceFactory = DataSource.Factory { ContentDataSource(context) },
       chan4CloudFlareImagePreloaderManager = chan4CloudFlareImagePreloaderManager,
@@ -868,9 +870,9 @@ class MediaViewerController(
         "initialPagerIndex=${mediaViewerState.initialPagerIndex}")
   }
 
-  private fun createCacheDataSourceFactory(viewableMedia: List<ViewableMedia>): DataSource.Factory {
+  private fun createCacheDataSourceFactory(requestProperties: Map<String, String>): DataSource.Factory {
     val defaultDataSourceFactory = DefaultHttpDataSource.Factory()
-      .setDefaultRequestProperties(createRequestProperties(viewableMedia))
+      .setDefaultRequestProperties(requestProperties)
 
     return CacheDataSource.Factory()
       .setCache(exoPlayerCache.actualCache)

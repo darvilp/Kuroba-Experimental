@@ -8,7 +8,9 @@ import com.github.k1rakishou.chan.features.webview.WebViewTaskResult
 import com.github.k1rakishou.chan.features.webview.client.AbstractCookieWebViewClient
 import com.github.k1rakishou.chan.features.webview.client.AbstractWebViewClient
 import com.github.k1rakishou.common.CookieBuilder
+import com.github.k1rakishou.common.StringUtils.asFormattedToken
 import com.github.k1rakishou.common.domainOrHost
+import com.github.k1rakishou.core_logger.Logger
 import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -21,23 +23,20 @@ class CloudFlareTask(
   headerTitleText = headerTitleText,
   loadable = loadable,
   // Cloudflare might require user input. This depends on a lot of parameters.
-  headlessMaxTime = 2_000L,
+  headlessMaxTime = 0L,
   // Cloudflare only fully passes the check when WebView is actually attached to the view hierarchy, for some reason.
   // Couldn't figure out why yet, so for now I will just display it invisibly for some time.
-  invisibleMaxTime = 5_000L,
+  invisibleMaxTime = 0L,
   invokerWaiter = invokerWaiter
 ) {
   override val tag: String = TAG
-
-  override val doAutoClickLastTouchPosition: Boolean = true
 
   override fun createWebClient(): AbstractWebViewClient {
     return CloudFlareTaskWebViewClient(
       webViewClientResultWaiter = this@CloudFlareTask.webViewClientResultWaiter,
       loadableUrl = loadable as Loadable.Url,
       cookieManager = cookieManager,
-      initialCookies = initialCookies,
-      performAutoClick = ::performAutoClick
+      initialCookies = initialCookies
     )
   }
 
@@ -46,18 +45,24 @@ class CloudFlareTask(
     val urlToOpen = (loadable as Loadable.Url).url
     val key = urlToOpen.domainOrHost()
 
+    Logger.debug(TAG) {
+      "persistCookies() site: ${site.name}, key: '${key}', cookies: '${cookies.asFormattedToken()}'"
+    }
+
     cloudFlareClearanceCookieSetting.put(
       key = key,
       value = cookies
     )
+
+    val storedKeys = cloudFlareClearanceCookieSetting.read().keys
+    Logger.debug(TAG) { "persistCookies() done, stored keys: ${storedKeys}" }
   }
 
   private class CloudFlareTaskWebViewClient(
     webViewClientResultWaiter: CompletableDeferred<WebViewTaskResult>,
     private val loadableUrl: Loadable.Url,
     private val cookieManager: CookieManager,
-    private val initialCookies: AtomicReference<String>,
-    private val performAutoClick: (view: WebView) -> Unit
+    private val initialCookies: AtomicReference<String>
   ) : AbstractCookieWebViewClient(webViewClientResultWaiter) {
     private val _requestId = AtomicLong(0)
 
@@ -89,7 +94,6 @@ class CloudFlareTask(
             || prevCfClearanceCookie == newCfClearanceCookie
             || !newCookiesBuilder.containsAll(listOf(CloudFlareInterceptor.COOKIE_CF_CLEARANCE))
           ) {
-            performAutoClick(view)
             return
           }
 

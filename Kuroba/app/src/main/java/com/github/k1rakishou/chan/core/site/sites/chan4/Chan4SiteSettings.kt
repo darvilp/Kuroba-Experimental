@@ -95,12 +95,25 @@ class Chan4SiteSettings(
     )
   }
 
-  val emailVerificationCookie by lazy {
-    KurobaCookieSetting(
+  // Whether the email verification was completed. The verified 4chan_pass cookie itself is stored in postingCookie.
+  val emailVerified by lazy {
+    KurobaBooleanSetting(
       database = dependencies.settingsDatabase,
       kurobaSettingInfo = this,
-      moshi = dependencies.moshi,
-      key = KurobaSettingKey.Site.Chan4.EmailVerificationCookie(siteDescriptor.siteName),
+      key = KurobaSettingKey.Site.Chan4.EmailVerified(siteDescriptor.siteName),
+      default = false
+    )
+  }
+
+  // Raw WebView cookies ("key1=value1; key2=value2") captured after requesting the email verification link (step 1).
+  // They are restored into the WebView when opening the verification link (step 2) because 4chan checks that both
+  // steps were done by the same browser.
+  val emailVerificationRequestCookies by lazy {
+    KurobaStringSetting(
+      database = dependencies.settingsDatabase,
+      kurobaSettingInfo = this,
+      key = KurobaSettingKey.Site.Chan4.EmailVerificationRequestCookies(siteDescriptor.siteName),
+      default = ""
     )
   }
 }
