@@ -1,0 +1,53 @@
+name: Experimental 7 device smoke
+on:
+  push:
+    branches: [device-test/experimental.7]
+permissions:
+  contents: read
+jobs:
+  arm64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Start Android 35
+        shell: bash
+        run: |
+          test -c /dev/kvm
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then sudo setfacl -m "u:$USER:rw" /dev/kvm; fi
+          sdkmanager 'emulator' 'system-images;android-35;google_apis;x86_64'
+          printf 'no\n' | avdmanager create avd --name kuroba-smoke --package 'system-images;android-35;google_apis;x86_64' --device pixel_6
+          nohup "$ANDROID_HOME/emulator/emulator" -avd kuroba-smoke -no-window -no-boot-anim -gpu swiftshader_indirect -cores 2 -memory 3072 -no-snapshot -no-audio -no-metrics > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          timeout 180 adb wait-for-device
+          timeout 240 bash -c 'until [[ "$(adb shell getprop sys.boot_completed | tr -d "\r")" == 1 ]]; do sleep 3; done'
+          adb shell getprop ro.product.cpu.abilist | grep -F arm64-v8a
+          adb shell input keyevent KEYCODE_WAKEUP
+          adb shell wm dismiss-keyguard
+      - name: Install exact ARM64 APK and play a VP8 WebM
+        shell: bash
+        run: |
+          apk=KurobaEx-v1.3.47-experimental.7-test-arm64-v8a.apk
+          app=com.github.k1rakishou.chan.experimental.test
+          echo '9cdc47175d64caa98656fb1b1401e579340f9687c607788be28f212be11e4f54  KurobaEx-v1.3.47-experimental.7-test-arm64-v8a.apk' | sha256sum -c
+          adb install "$apk"
+          adb shell dumpsys package "$app" | grep -F 'primaryCpuAbi=arm64-v8a'
+          adb shell am start -W -n "$app/com.github.k1rakishou.chan.ui.activity.StartActivity"
+          timeout 60 bash -c 'until adb shell dumpsys activity activities | grep -q "ResumedActivity.*com.github.k1rakishou.chan.experimental.test"; do sleep 2; done'
+          path="/sdcard/Android/data/$app/files/kuroba-smoke.webm"
+          adb shell mkdir -p "${path%/*}"
+          adb push fixtures/kuroba-smoke.webm "$path"
+          adb shell am start -W -n "$app/com.github.k1rakishou.chan.features.view.media.MediaViewerActivity" -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "file://$path"
+          sleep 12
+          adb shell dumpsys activity activities > "$RUNNER_TEMP/kuroba-activities.txt"
+          grep 'ResumedActivity.*MediaViewerActivity' "$RUNNER_TEMP/kuroba-activities.txt"
+          pid="$(adb shell pidof "$app" | tr -d '\r')"
+          test -n "$pid"
+          adb logcat -d --pid="$pid" > "$RUNNER_TEMP/kuroba-logcat.txt"
+          grep -Ei 'vp8\.decoder|decoder\.vp8' "$RUNNER_TEMP/kuroba-logcat.txt"
+          if grep -E 'FATAL EXCEPTION|E AndroidRuntime' "$RUNNER_TEMP/kuroba-logcat.txt"; then exit 1; fi
+      - name: Print emulator diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          tail -n 40 "$RUNNER_TEMP/emulator.log" || true
+          tail -n 70 "$RUNNER_TEMP/kuroba-logcat.txt" || true
