@@ -45,7 +45,7 @@ jobs:
           adb shell getprop ro.product.cpu.abilist | grep -F arm64-v8a
           adb shell input keyevent KEYCODE_WAKEUP
           adb shell wm dismiss-keyguard
-      - name: Install exact ARM64 APK and play a VP8 WebM
+      - name: Verify, install, and launch exact ARM64 APK
         shell: bash
         run: |
           apk=KurobaEx-v1.3.47-experimental.7-test-arm64-v8a.apk
@@ -55,10 +55,12 @@ jobs:
           adb shell dumpsys package "$app" | grep -F 'primaryCpuAbi=arm64-v8a'
           adb shell am start -W -n "$app/com.github.k1rakishou.chan.ui.activity.StartActivity"
           timeout 60 bash -c 'until adb shell dumpsys activity activities | grep -q "ResumedActivity.*com.github.k1rakishou.chan.experimental.test"; do sleep 2; done'
-          path="/sdcard/Android/data/$app/files/kuroba-smoke.webm"
-          adb shell mkdir -p "${path%/*}"
-          adb push fixtures/kuroba-smoke.webm "$path"
-          adb shell am start -W -n "$app/com.github.k1rakishou.chan.features.view.media.MediaViewerActivity" -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "file://$path"
+      - name: Open a VP8 WebM in the Media Viewer
+        shell: bash
+        run: |
+          app=com.github.k1rakishou.chan.experimental.test
+          fixture=https://raw.githubusercontent.com/darvilp/Kuroba-Experimental/5a10ade2ea0442e9f18f9056c55112da3301c2c6/fixtures/kuroba-smoke.webm
+          adb shell am start -W -n "$app/com.github.k1rakishou.chan.features.view.media.MediaViewerActivity" -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "$fixture"
           sleep 12
           adb shell dumpsys activity activities > "$RUNNER_TEMP/kuroba-activities.txt"
           grep 'ResumedActivity.*MediaViewerActivity' "$RUNNER_TEMP/kuroba-activities.txt"
