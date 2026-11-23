@@ -22,6 +22,8 @@ import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerCustomPlay
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerCustomPlayerView
 import com.github.k1rakishou.chan.features.view.media.helper.ExoPlayerWrapper
 import com.github.k1rakishou.chan.features.view.media.helper.MediaPlaybackLifecycle
+import com.github.k1rakishou.chan.features.view.media.helper.MediaViewerBottomContainer
+import com.github.k1rakishou.chan.features.view.media.soundpost.ExoPlayerSyncTarget
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerActionStrip
 import com.github.k1rakishou.chan.features.view.media.strip.MediaViewerBottomActionStrip
 import com.github.k1rakishou.chan.ui.theme.widget.ColorizableProgressBar
@@ -34,6 +36,7 @@ import com.github.k1rakishou.common.awaitCatching
 import com.github.k1rakishou.common.errorMessageOrClassName
 import com.github.k1rakishou.common.findChild
 import com.github.k1rakishou.common.isExceptionImportant
+import com.github.k1rakishou.common.updateHeight
 import com.github.k1rakishou.core_logger.Logger
 import com.github.k1rakishou.v2.KurobaSettings
 import com.google.android.exoplayer2.Player
@@ -71,9 +74,6 @@ class ExoPlayerVideoMediaView(
     mediaViewContract = mediaViewContract,
     kurobaSettings = kurobaSettings,
     mediaViewState = initialMediaViewState,
-    cachedHttpDataSourceFactory = cachedHttpDataSourceFactory,
-    fileDataSourceFactory = fileDataSourceFactory,
-    contentDataSourceFactory = contentDataSourceFactory,
   ) {
 
   private val thumbnailMediaView: ThumbnailMediaView
@@ -111,7 +111,9 @@ class ExoPlayerVideoMediaView(
   private var preloadingJob: Job? = null
   private var playJob: Job? = null
   private var videoSoundDetected = false
+  private var videoLoadForced = false
 
+  override val soundPostControlledByMediaControls: Boolean = true
   override val hasContent: Boolean
     get() = mainVideoPlayer.hasContent
   override val mediaViewerActionStrip: MediaViewerActionStrip
@@ -136,6 +138,11 @@ class ExoPlayerVideoMediaView(
 
     val placeholderView = findViewById<FrameLayout>(R.id.view_player_controls_placeholder)
     actualVideoPlayerView.setControllerPlaceholderView(placeholderView, this)
+
+    // Draw the controls (with their background) behind the navigation bar instead of above it
+    val controlsBottomInset = findViewById<View>(R.id.exo_controls_insets_view)
+    findViewById<MediaViewerBottomContainer>(R.id.media_view_bottom_container)
+      .setBottomInsetConsumer { bottomInset -> controlsBottomInset?.updateHeight(bottomInset) }
 
     muteUnmuteButton = findViewById(R.id.exo_mute)
     muteUnmuteButton.setEnabledFast(false)
@@ -174,6 +181,7 @@ class ExoPlayerVideoMediaView(
 
           if (viewableMedia.mediaLocation is MediaLocation.Remote && canForcePreload) {
             cancelBytePreloading()
+            videoLoadForced = true
             preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
             return@GestureDetectorListener true
           } else if (!canForcePreload) {
@@ -241,6 +249,7 @@ class ExoPlayerVideoMediaView(
       ThumbnailMediaView.ThumbnailMediaViewParameters(
         isOriginalMediaPlayable = true,
         viewableMedia = viewableMedia,
+        isMainMediaLoaded = { hasContent },
       ),
       onThumbnailFullyLoaded = {
         onThumbnailFullyLoadedFunc()
@@ -374,6 +383,8 @@ class ExoPlayerVideoMediaView(
       url = mediaLocation.url.toString()
     )
 
+    stopSoundPostPlayback()
+
     fullVideoDeferred.cancel()
     fullVideoDeferred = CompletableDeferred<Unit>()
     bytePreloadingCompleted = false
@@ -411,6 +422,7 @@ class ExoPlayerVideoMediaView(
   override fun initializePlayerAndStartPlaying() {
     if (preloadingJob == null) {
       cancelBytePreloading()
+      videoLoadForced = true
       preloadingJob = startFullVideoPreloading(viewableMedia.mediaLocation)
     }
   }
@@ -488,7 +500,8 @@ class ExoPlayerVideoMediaView(
   }
 
   private fun updateMuteUnMuteState() {
-    if (!videoSoundDetected) {
+    // The mute button also controls the sound post audio
+    if (!videoSoundDetected && !hasSoundPost) {
       return
     }
 
@@ -535,6 +548,12 @@ class ExoPlayerVideoMediaView(
     }
 
     thumbnailMediaView.setVisibilityFast(INVISIBLE)
+
+    startSoundPostPlayback(
+      target = ExoPlayerSyncTarget(mainVideoPlayer),
+      isForced = videoLoadForced,
+      isLifecycleChange = isLifecycleChange
+    )
   }
 
   private fun canPreload(forced: Boolean): Boolean {
@@ -650,6 +669,7 @@ class ExoPlayerVideoMediaView(
 
     override fun clone(): MediaViewState {
       return VideoMediaViewState(prevPosition, prevWindowIndex, videoSoundDetected, playing)
+        .also { newState -> newState.soundPostState.updateFrom(soundPostState) }
     }
 
     override fun updateFrom(other: MediaViewState?) {
@@ -658,6 +678,7 @@ class ExoPlayerVideoMediaView(
         prevWindowIndex = -1
         videoSoundDetected = null
         playing = null
+        soundPostState.updateFrom(null)
         return
       }
 
@@ -669,6 +690,7 @@ class ExoPlayerVideoMediaView(
       this.prevWindowIndex = other.prevWindowIndex
       this.videoSoundDetected = other.videoSoundDetected
       this.playing = other.playing
+      this.soundPostState.updateFrom(other.soundPostState)
     }
   }
 
