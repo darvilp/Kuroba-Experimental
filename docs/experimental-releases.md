@@ -32,6 +32,16 @@ The required repository secrets are:
 
 Keep the private key and its passwords out of the repository and release assets. `docs/experimental-signing-certificate.sha256` contains only the public certificate fingerprint and is checked by the APK verifier. Back up the private signing material securely; a replacement key does not normally update existing installations.
 
+## Build a device-test APK
+
+When the release key is unavailable, build a side-by-side APK from a clean checkout. From `Kuroba`, run:
+
+```sh
+bash ./gradlew :app:assembleRelease -PbuildType=2 -PexperimentalTestBuild=true
+```
+
+These APKs use the debug signing key and package `com.github.k1rakishou.chan.experimental.test`. They install separately from the Experimental release. The arm64 APK is `app/build/outputs/apk/release/KurobaEx-experimental-test-arm64-v8a.apk`.
+
 ## Build locally
 
 Use JDK 21 and an Android SDK with platform 36 and build-tools 36.0.0. Set `ANDROID_HOME` to that SDK. Load the private signing values into these environment variables:

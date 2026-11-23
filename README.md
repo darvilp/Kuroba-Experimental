@@ -6,6 +6,8 @@ Experimental APKs install alongside Personal and upstream builds with separate a
 
 ## Development branch summaries
 
+The Personal branch tips are preserved under `archive/personal/*`. Current integration builds come from `release/experimental`.
+
 This catalog covers the fork's feature, fix, spike, and personal integration branches. Each entry states whether its changes are included here; older investigation branches contain alternatives that are not part of this release.
 
 ### `feature/654-video-end-behavior`
@@ -72,7 +74,7 @@ Combines video completion controls and the playback lifecycle fix in a Personal 
 
 The current tip includes the synchronous MediaCodec queueing diagnostic and removes the earlier software-VP8 decoder preference. It uses the older standalone ExoPlayer backend and is a separate investigation build from the Media3 integrations.
 
-**Release integration:** Separate older integration. Its lifecycle and completion controls are included through other branches; its auto-advance revisit reset and synchronous-queueing diagnostic are not included.
+**Release integration:** Separate older integration. Experimental includes its lifecycle, completion controls, and replay on revisit. Synchronous MediaCodec queueing remains in the diagnostic branch.
 
 ### `spike/media3-migration`
 

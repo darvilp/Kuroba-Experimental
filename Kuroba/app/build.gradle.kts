@@ -37,7 +37,15 @@ val experimentalRelease = providers.gradleProperty("experimentalRelease")
     .map { it.toBooleanStrict() }
     .getOrElse(false)
 
-if (experimentalRelease) {
+val experimentalTestBuild = providers.gradleProperty("experimentalTestBuild")
+    .map { it.toBooleanStrict() }
+    .getOrElse(false)
+require(!experimentalRelease || !experimentalTestBuild) {
+    "Experimental release and test packaging are mutually exclusive."
+}
+val experimentalPackaging = experimentalRelease || experimentalTestBuild
+
+if (experimentalPackaging) {
     val gitStatus = providers.exec {
         commandLine("git", "status", "--porcelain")
     }.standardOutput.asText.get().trim()
@@ -51,7 +59,7 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     val kurobaBuildType = KurobaBuildType.fromRaw(project.findProperty("buildType")?.toString()?.toInt())
-    require(!experimentalRelease || kurobaBuildType == KurobaBuildType.Dev) {
+    require(!experimentalPackaging || kurobaBuildType == KurobaBuildType.Dev) {
         "Experimental releases must retain Dev runtime behavior. Use -PbuildType=2."
     }
     when (kurobaBuildType) {
@@ -73,7 +81,7 @@ android {
         val commitHash = when (kurobaBuildType) {
             KurobaBuildType.Stable,
             KurobaBuildType.Beta -> gitHashProvider.get()
-            KurobaBuildType.Dev -> if (experimentalRelease) gitHashProvider.get() else "dev-build"
+            KurobaBuildType.Dev -> if (experimentalPackaging) gitHashProvider.get() else "dev-build"
         }
         buildConfigField("String", "COMMIT_HASH", "\"${commitHash}\"")
         manifestPlaceholders["appTheme"] = "@style/Chan.DefaultTheme"
@@ -101,12 +109,13 @@ android {
         versionCode = 10347
         versionName = "v1.3.47"
 
-        if (experimentalRelease) {
+        if (experimentalPackaging) {
             val experimentalVersion = Properties().apply {
                 rootProject.file("experimental-version.properties").inputStream().use { load(it) }
             }
-            applicationIdSuffix = ".experimental"
-            manifestPlaceholders["appName"] = "KurobaEx Experimental"
+            applicationIdSuffix = if (experimentalTestBuild) ".experimental.test" else ".experimental"
+            manifestPlaceholders["appName"] =
+                if (experimentalTestBuild) "KurobaEx Experimental Test" else "KurobaEx Experimental"
             versionCode = experimentalVersion.getProperty("versionCode").toInt()
             versionName = experimentalVersion.getProperty("versionName")
         }
@@ -178,7 +187,7 @@ android {
             val onlyDebugTasksRequested = requestedTaskNames.isNotEmpty() &&
                 requestedTaskNames.all { taskName -> taskName.contains("debug", ignoreCase = true) }
 
-            isEnable = !onlyDebugTasksRequested
+            isEnable = experimentalTestBuild || !onlyDebugTasksRequested
             reset()
             include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             isUniversalApk = true
@@ -190,7 +199,9 @@ android {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard.cfg")
             isDebuggable = false
-            if (experimentalRelease) {
+            if (experimentalTestBuild) {
+                signingConfig = signingConfigs.getByName("debug")
+            } else if (experimentalRelease) {
                 signingConfig = signingConfigs.getByName("experimental")
             } else if (signingConfigs.names.contains("release")) {
                 signingConfig = signingConfigs.getByName("release")
@@ -212,10 +223,12 @@ android {
         variant.outputs
             .map { it as BaseVariantOutputImpl }
             .forEach { output ->
-                val apkNameSuffix = if (experimentalRelease) "experimental" else when (kurobaBuildType) {
-                  KurobaBuildType.Stable -> ""
-                  KurobaBuildType.Beta -> "beta"
-                  KurobaBuildType.Dev -> "personal"
+                val apkNameSuffix = when {
+                    experimentalTestBuild -> "experimental-test"
+                    experimentalRelease -> "experimental"
+                    kurobaBuildType == KurobaBuildType.Beta -> "beta"
+                    kurobaBuildType == KurobaBuildType.Dev -> "personal"
+                    else -> ""
                 }
                 val abi = output.getFilter("ABI") ?: ""
 
@@ -241,6 +254,7 @@ android {
         // (when nothing else was changed)
         variant.generateBuildConfigProvider.configure {
             inputs.property("buildType", kurobaBuildType.name)
+            inputs.property("experimentalPackaging", experimentalPackaging)
         }
     }
 
